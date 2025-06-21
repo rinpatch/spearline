@@ -71,6 +71,7 @@ export interface DetailedStory extends ProcessedStory {
     title: string;
     published_at: string;
     url?: string;
+    bias_analysis?: BiasAnalysis;
     source: {
       name: string;
       bias: string;
@@ -275,17 +276,32 @@ export function processStoryForDetail(story: Story): DetailedStory {
   
   return {
     ...processed,
-    articles: articles.map(article => ({
-      id: article.id,
-      title: article.title,
-      published_at: article.published_at,
-      url: (article as Article & { url?: string }).url, // Add URL if available
-      source: {
-        name: article.source.name,
-        bias: article.source.perceived_leaning || 'Independent',
-        slug: article.source.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    articles: articles.map(article => {
+      // Parse bias analysis if it exists
+      let biasAnalysis: BiasAnalysis | undefined;
+      if (article.bias_analysis) {
+        try {
+          biasAnalysis = typeof article.bias_analysis === 'string' 
+            ? JSON.parse(article.bias_analysis) 
+            : article.bias_analysis;
+        } catch (error) {
+          console.warn('Failed to parse bias analysis for article:', article.id, error);
+        }
       }
-    })),
+
+      return {
+        id: article.id,
+        title: article.title,
+        published_at: article.published_at,
+        url: (article as Article & { url?: string }).url,
+        bias_analysis: biasAnalysis,
+        source: {
+          name: article.source.name,
+          bias: article.source.perceived_leaning || 'Independent',
+          slug: article.source.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        }
+      };
+    }),
     confidence
   };
 }

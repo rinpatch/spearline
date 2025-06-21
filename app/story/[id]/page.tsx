@@ -5,8 +5,116 @@ import { ArrowLeft, Calendar, ExternalLink, Share2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getProcessedStoryById, DetailedStory } from "@/lib/service/story-service"
+
+// BiasAnalysis interface for typing
+interface BiasAnalysis {
+  summary: string;
+  sentiment_overall: {
+    score: number;
+    label: 'Positive' | 'Negative' | 'Neutral';
+  };
+  sentiment_towards_government: {
+    score: number;
+    explanation: string;
+  };
+  "sentiment_towards_Malay and Bumiputera": {
+    score: number;
+    explanation: string;
+  };
+  sentiment_towards_Islam: {
+    score: number;
+    explanation: string;
+  };
+  sentiment_towards_Multicultural: {
+    score: number;
+    explanation: string;
+  };
+  sentiment_towards_Secular_learning: {
+    score: number;
+    explanation: string;
+  };
+  topics_detected: string[];
+}
+
+// Bias configuration object for cleaner code
+const BIAS_CONFIG = {
+  'Pro-Government': {
+    label: 'Gov',
+    className: 'bg-red-50 text-red-700'
+  },
+  'Pro-Opposition': {
+    label: 'Opp',
+    className: 'bg-blue-50 text-blue-700'
+  },
+  'Pro-Malay/Bumiputera': {
+    label: 'Malay',
+    className: 'bg-amber-50 text-amber-700'
+  },
+  'Pro-Islam': {
+    label: 'Islam',
+    className: 'bg-green-50 text-green-700'
+  },
+  'Secular-Leaning': {
+    label: 'Secular',
+    className: 'bg-yellow-50 text-yellow-700'
+  },
+  'Multicultural': {
+    label: 'Multi',
+    className: 'bg-orange-50 text-orange-700'
+  },
+  'Neutral': {
+    label: 'Neutral',
+    className: 'bg-gray-50 text-gray-700'
+  }
+} as const;
+
+// Helper function to determine the primary bias from bias analysis
+const getArticleBias = (biasAnalysis?: BiasAnalysis) => {
+  if (!biasAnalysis) return { bias: 'Neutral', justification: 'No bias analysis available' };
+  
+  const sentiments = {
+    'Pro-Government': biasAnalysis.sentiment_towards_government?.score || 0,
+    'Pro-Malay/Bumiputera': biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.score || 0,
+    'Pro-Islam': biasAnalysis.sentiment_towards_Islam?.score || 0,
+    'Multicultural': biasAnalysis.sentiment_towards_Multicultural?.score || 0,
+    'Secular-Leaning': biasAnalysis.sentiment_towards_Secular_learning?.score || 0,
+  };
+  
+  // Find the sentiment with the highest absolute value
+  let primaryBias: keyof typeof BIAS_CONFIG = 'Neutral';
+  let maxScore = 0;
+  let justification = 'Neutral analysis with no strong bias detected';
+  
+  Object.entries(sentiments).forEach(([bias, score]) => {
+    if (Math.abs(score) > Math.abs(maxScore)) {
+      maxScore = score;
+      primaryBias = bias as keyof typeof BIAS_CONFIG;
+      
+      // Get the explanation from the bias analysis
+      if (bias === 'Pro-Government') {
+        justification = biasAnalysis.sentiment_towards_government?.explanation || 'Government sentiment detected';
+      } else if (bias === 'Pro-Malay/Bumiputera') {
+        justification = biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.explanation || 'Malay/Bumiputera sentiment detected';
+      } else if (bias === 'Pro-Islam') {
+        justification = biasAnalysis.sentiment_towards_Islam?.explanation || 'Islamic sentiment detected';
+      } else if (bias === 'Multicultural') {
+        justification = biasAnalysis.sentiment_towards_Multicultural?.explanation || 'Multicultural sentiment detected';
+      } else if (bias === 'Secular-Leaning') {
+        justification = biasAnalysis.sentiment_towards_Secular_learning?.explanation || 'Secular sentiment detected';
+      }
+    }
+  });
+  
+  // If no strong bias detected (all scores close to 0), keep as Neutral
+  if (Math.abs(maxScore) < 0.3) {
+    primaryBias = 'Neutral';
+    justification = 'Neutral analysis with no strong bias detected';
+  }
+  
+  return { bias: primaryBias, justification };
+};
 
 const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
   <div className="flex flex-wrap gap-2">
@@ -51,72 +159,6 @@ const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
   </div>
 )
 
-const SourcesList = ({ 
-  sources, 
-  showUrls = false 
-}: { 
-  sources: Array<{
-    name: string;
-    bias: string;
-    slug: string;
-  }>; 
-  showUrls?: boolean 
-}) => (
-  <div className="space-y-2">
-    <h4 className="text-sm font-medium text-gray-900">Coverage Sources ({sources.length})</h4>
-    <div className="grid grid-cols-1 gap-2">
-      {sources.map((source, index) => (
-        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-          <div className="flex items-center space-x-2">
-            <Link href={`/source/${source.slug}`}>
-              <span className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
-                {source.name}
-              </span>
-            </Link>
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                source.bias === "Pro-Government"
-                  ? "bg-red-50 text-red-700 border border-red-100"
-                  : source.bias === "Pro-Opposition"
-                    ? "bg-blue-50 text-blue-700 border border-blue-100"
-                    : source.bias === "Pro-Malay/Bumiputera"
-                      ? "bg-amber-50 text-amber-700 border border-amber-100"
-                      : source.bias === "Pro-Islam"
-                        ? "bg-green-50 text-green-700 border border-green-100"
-                        : source.bias === "Secular-Leaning"
-                          ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
-                          : source.bias === "Multicultural"
-                            ? "bg-orange-50 text-orange-700 border border-orange-100"
-                            : "bg-gray-50 text-gray-700 border border-gray-100"
-              }`}
-            >
-              {source.bias === "Pro-Government"
-                ? "Gov"
-                : source.bias === "Pro-Opposition"
-                  ? "Opp"
-                  : source.bias === "Pro-Malay/Bumiputera"
-                    ? "Malay"
-                    : source.bias === "Pro-Islam"
-                      ? "Islam"
-                      : source.bias === "Secular-Leaning"
-                        ? "Secular"
-                        : source.bias === "Multicultural"
-                          ? "Multi"
-                          : "Independent"}
-            </span>
-          </div>
-          {showUrls && (
-            <Button variant="ghost" size="sm">
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Read
-            </Button>
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
-)
-
 const ArticlesList = ({ 
   articles 
 }: { 
@@ -125,6 +167,7 @@ const ArticlesList = ({
     title: string;
     published_at: string;
     url?: string;
+    bias_analysis?: BiasAnalysis;
     source: {
       name: string;
       bias: string;
@@ -132,65 +175,53 @@ const ArticlesList = ({
     };
   }> 
 }) => (
-  <div className="space-y-3">
-    <h4 className="text-sm font-medium text-gray-900">Individual Articles ({articles.length})</h4>
-    {articles.map((article) => (
-      <div key={article.id} className="border border-gray-200 rounded-lg p-3">
-        <h5 className="font-medium text-gray-900 mb-2 text-sm leading-tight">
-          {article.title}
-        </h5>
-        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-          <div className="flex items-center space-x-2">
-            <Link href={`/source/${article.source.slug}`}>
-              <span className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
-                {article.source.name}
-              </span>
-            </Link>
-            <span
-              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                article.source.bias === "Pro-Government"
-                  ? "bg-red-50 text-red-700"
-                  : article.source.bias === "Pro-Opposition"
-                    ? "bg-blue-50 text-blue-700"
-                    : article.source.bias === "Pro-Malay/Bumiputera"
-                      ? "bg-amber-50 text-amber-700"
-                      : article.source.bias === "Pro-Islam"
-                        ? "bg-green-50 text-green-700"
-                        : article.source.bias === "Secular-Leaning"
-                          ? "bg-yellow-50 text-yellow-700"
-                          : article.source.bias === "Multicultural"
-                            ? "bg-orange-50 text-orange-700"
-                            : "bg-gray-50 text-gray-700"
-              }`}
-            >
-              {article.source.bias === "Pro-Government"
-                ? "Gov"
-                : article.source.bias === "Pro-Opposition"
-                  ? "Opp"
-                  : article.source.bias === "Pro-Malay/Bumiputera"
-                    ? "Malay"
-                    : article.source.bias === "Pro-Islam"
-                      ? "Islam"
-                      : article.source.bias === "Secular-Leaning"
-                        ? "Secular"
-                        : article.source.bias === "Multicultural"
-                          ? "Multi"
-                          : "Independent"}
-            </span>
+  <TooltipProvider>
+    <div className="space-y-3">
+      <h4 className="text-sm font-medium text-gray-900">Individual Articles ({articles.length})</h4>
+      {articles.map((article) => {
+        const { bias, justification } = getArticleBias(article.bias_analysis);
+        const biasConfig = BIAS_CONFIG[bias as keyof typeof BIAS_CONFIG] || BIAS_CONFIG['Neutral'];
+        
+        return (
+          <div key={article.id} className="border border-gray-200 rounded-lg p-3">
+            <h5 className="font-medium text-gray-900 mb-2 text-sm leading-tight">
+              {article.title}
+            </h5>
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+              <div className="flex items-center space-x-2">
+                <Link href={`/source/${article.source.slug}`}>
+                  <span className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
+                    {article.source.name}
+                  </span>
+                </Link>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium cursor-help ${biasConfig.className}`}
+                    >
+                      {biasConfig.label}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-sm">{justification}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <span>{new Date(article.published_at).toLocaleDateString()}</span>
+            </div>
+            {article.url && (
+              <Button variant="outline" size="sm" asChild className="text-xs">
+                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Read Original
+                </a>
+              </Button>
+            )}
           </div>
-          <span>{new Date(article.published_at).toLocaleDateString()}</span>
-        </div>
-        {article.url && (
-          <Button variant="outline" size="sm" asChild className="text-xs">
-            <a href={article.url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Read Original
-            </a>
-          </Button>
-        )}
-      </div>
-    ))}
-  </div>
+        );
+      })}
+    </div>
+  </TooltipProvider>
 )
 
 export default function StoryPage({ params }: { params: { id: string } }) {
@@ -312,11 +343,6 @@ export default function StoryPage({ params }: { params: { id: string } }) {
                 View All Sources
               </Button>
             </div>
-
-            {/* Sources List */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <SourcesList sources={story.sources} showUrls={true} />
-            </div>
           </div>
         </div>
 
@@ -350,8 +376,7 @@ export default function StoryPage({ params }: { params: { id: string } }) {
                   <div className="space-y-4">
                     <BiasBadges breakdown={story.biasBreakdown} />
                     <div className="text-xs text-gray-500">
-                      <p>Analysis based on language patterns, source selection, and framing techniques across {story.articles.length} articles.</p>
-                    </div>
+                      Analysis based on language patterns, source selection, and framing techniques across {story.articles.length} articles.</div>
                   </div>
                 </CardContent>
               </Card>
