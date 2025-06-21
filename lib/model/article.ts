@@ -2,6 +2,7 @@ import { supabase } from "@/lib/service/supabase-server";
 import { createStory } from "@/lib/model/story";
 import { getEmbeddings } from "@/lib/service/openai";
 import { openrouter } from "@/lib/service/openrouter";
+import { findClusterForText } from "../cluster";
 
 interface SentimentScore {
     score: number;
@@ -46,7 +47,7 @@ export async function insertArticle(articleData: ArticleData) {
     // 2. Generate embedding
     const embedding = await getEmbeddings(`${title}\n\n${full_text_content}`);
 
-    let storyIdToAssign = articleData.story_id;
+    let storyIdToAssign = await findClusterForText(`${title}\n\n${full_text_content}`);
 
     // 3. If no story_id is provided, create a new story
     if (!storyIdToAssign) {
