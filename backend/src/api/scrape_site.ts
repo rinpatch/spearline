@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 
 import { Redis } from '@upstash/redis';
@@ -10,26 +9,13 @@ import * as cheerio from 'cheerio';
 import { createHash } from 'crypto';
 
 import { NextApiRequest, NextApiResponse } from 'next';
+import { supabase } from '../lib/supabase';
 
-  
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL!;
 
-// --- Configuration ---
-
-const supabaseUrl = process.env.SUPABASE_URL!;
-
-const supabaseKey = process.env.SUPABASE_ANON_KEY!;
-
-const redisUrl = process.env.UPSTASH_REDIS_URL!;
-
-const redisToken = process.env.UPSTASH_REDIS_TOKEN!;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN!;
 
 const openRouterKey = process.env.OPENROUTER_API_KEY!;
-
-  
-
-// --- Initialize Clients ---
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 const redis = new Redis({ url: redisUrl, token: redisToken });
 

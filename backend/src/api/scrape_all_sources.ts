@@ -1,15 +1,18 @@
-import { createClient } from '@supabase/supabase-js';
 import { Client } from "@upstash/qstash";
 import { NextApiRequest, NextApiResponse } from 'next'; // For Vercel
+import { supabase } from '../lib/supabase';
+
+type Source = {
+  id: number;
+  name: string;
+  base_url: string;
+};
 
 // --- Configuration ---
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_ANON_KEY!;
 const qstashToken = process.env.QSTASH_TOKEN!;
 const scrapeSiteApiUrl = process.env.SCRAPE_SITE_API_URL!;
 
 // --- Initialize Clients ---
-const supabase = createClient(supabaseUrl, supabaseKey);
 const qstashClient = new Client({ token: qstashToken });
 
 /**
@@ -25,9 +28,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        console.log("Fetching sources from database...");
+        console.log("Scrape-all-sources job started.");
 
-        // 1. Fetch all news sources from the 'sources_msia.sources' table.
+        // 1. Fetch all news sources from the 'sources' table.
         const { data: sources, error } = await supabase
             .from('sources')
             .select('id, name, base_url');
@@ -46,7 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // 2. For each source, publish a message to the QStash queue.
         // The message body contains the information needed by the scrape-site function.
-        const publishPromises = sources.map(source =>
+        const publishPromises = sources.map((source: Source) =>
             qstashClient.publishJSON({
                 // The endpoint that will process this message
                 url: scrapeSiteApiUrl,
