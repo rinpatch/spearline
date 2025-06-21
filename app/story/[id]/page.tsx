@@ -339,19 +339,6 @@ export default function StoryPage({ params }: { params: { id: string } }) {
           {/* Sidebar - AI Analysis */}
           <div className="lg:col-span-1">
             <div className="sticky top-24 space-y-6">
-              {/* AI Summary */}
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center space-x-2 mb-4">
-                    <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">AI ANALYSIS</div>
-                    <Badge variant="outline" className="text-xs">
-                      {story.confidence}% confidence
-                    </Badge>
-                  </div>
-                  <p className="text-gray-700 leading-relaxed">{story.summary}</p>
-                </CardContent>
-              </Card>
-
               {/* Bias Analysis */}
               <Card>
                 <CardContent className="p-6">
