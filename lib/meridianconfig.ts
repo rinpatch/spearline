@@ -58,8 +58,8 @@ export const siteConfigs: SiteConfig[] = [
     pagination: { type: 'next_button', selector: 'a.next.page-numbers' },
     extraction: {
       titleSelector: 'div.headline',
-      contentSelector: 'div.entry-content',
-      dateSelector: '.author-date > .inf2',
+      contentSelector: 'div.text',
+      dateSelector: '.date',
       elementsToRemove: ['.code-block', '.yarpp-related']
     }
   },
