@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Spearline  - Piercing Bias. Truth in the Line.
 
-## Getting Started
+![spearline logo](./public/spearline-logo.png)
 
-First, run the development server:
+Spearline is an AI-powered Malaysian news aggregator designed to uncover media bias.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+We bring together news from across languages — Malay, English, and Chinese — and use AI to summarize each article and identify its ideological leanings, such as Pro-Government, Pro-Islam, or Opposition-aligned.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Team
+This project is done by Nott-A-Hackers team for Taylor's Univeristy ImagineHack 2025 Hackathon. The team members are:
+- [@rinpatch](https://github.com/rinpatch)
+- [@Mint3Ds](https://github.com/Mint3Ds)
+- [mithileshtew0702](https://github.com/mithileshtew0702)
+- [@Yoonjae7](https://github.com/Yoonjae7)
+- [Pyjalal](https://github.com/Pyjalal)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Technologies Used
+- Next.js (FE/BE)
+- Vercel (Deploy)
+- Supabase (Postgres Database to store articles/embeddings)
+- Qstash (Job queue for news scraping/processing)
+- Upstash Redis (In-Memory cache, we just use it to keep track of recently processed articles to not reprocess them)
+- Openrouter (Unified LLM API allowing for easy switching of models, we currently use gemini-2.0-flash for everything due to good cost-to-benefit)
+- OpenAI embeddings API (used to transform news text into number vectors, which we can compare for similarity in order to "cluster" articles about same topic into one story)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploying
 
-## Learn More
+Deploy in a [Vercel](https://vercel.com) project with QStash, Supabase and Upstash Redis connected. Set the following evironment variables:
+- `APP_BASE_URL`: prod url that QStash cron will query (i.e https://spearline.vercel.app/).
+- `OPENROUTER_API_KEY`: OpenRouter API key to be used for analysis as well as summary/title generation.
+- `OPENAI_API_KEY`: OpenAI API key, will only be used for text embeddings.
 
-To learn more about Next.js, take a look at the following resources:
+## Challenge and Approach
+TODO: 
+## Usage Instructions
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+TODO: Add screenshots
