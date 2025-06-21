@@ -31,7 +31,24 @@ Deploy in a [Vercel](https://vercel.com) project with QStash, Supabase and Upsta
 - `OPENAI_API_KEY`: OpenAI API key, will only be used for text embeddings.
 
 ## Challenge and Approach
-TODO: 
-## Usage Instructions
 
-TODO: Add screenshots
+### Problem
+Malaysia's news media is deeply fragmented along ethnic, linguistic, and political lines. A single news story can be interpreted in completely different ways depending on whether the reader views it in Malay, Chinese, or English — and from which outlet.
+
+### Our Approach
+Spearline tackles this problem by using AI to detect and visualize ideological bias in news articles across multiple Malaysian media sources. We built an aggregator platform that:
+- Collects news articles from different language-based sources
+- Uses an LLM (via OpenRouter) to summarize articles and classify bias (e.g., Pro-Government, Pro-Opposition, Pro-Malay, etc.)
+- Displays these biases in a clean, percentage-based breakdown per article
+- Offers users different perspectives side by side, helping them see beyond their media bubble
+
+**The goal**: Make media bias transparent, and empower Malaysians to think critically about what they read.
+
+## ✨ Features
+- **AI-Powered Bias Detection**: Uses advanced LLM technology to classify ideological leanings
+- **Visual Bias Breakdown**: Clean percentage-based visualization of detected biases
+- **Side-by-Side Comparison**: Compare different perspectives on the same story
+- **Real-time Analysis**: Live processing of news articles as they're published
+
+## 🧪 Usage Instructions
+Visit: [https://spearline.vercel.app]
