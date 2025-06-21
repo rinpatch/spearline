@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/service/supabase-server";
-import { createStory } from "@/lib/model/story";
+import { addArticleToStory, createStory } from "@/lib/model/story";
 import { getEmbeddings } from "@/lib/service/openai";
 import { openrouter } from "@/lib/service/openrouter";
 import { findClusterForText } from "../cluster";
@@ -74,17 +74,7 @@ export async function insertArticle(articleData: ArticleData) {
         throw new Error(`Failed to insert article: ${insertError.message}`);
     }
 
-    // 6. Update the story's last_article_added_at timestamp
-    const { error: updateError } = await supabase
-        .from("stories")
-        .update({ last_article_added_at: new Date().toISOString() })
-        .eq("id", storyIdToAssign);
-
-    if (updateError) {
-        console.error(`Failed to update story last_article_added_at: ${updateError.message}`);
-        // Don't throw here as the article was successfully inserted
-    }
-
+    await addArticleToStory(storyIdToAssign, newArticle.id);
     console.log(`Successfully inserted article ${newArticle.id} into story ${storyIdToAssign}`);
 
     return newArticle;

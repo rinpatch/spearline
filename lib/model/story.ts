@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/service/supabase-server";
 import { getEmbeddings } from "@/lib/service/openai";
+import { openrouter } from "@/lib/service/openrouter";
 
 // This is a tunable threshold. A higher value means articles need to be more similar to be clustered.
 const SIMILARITY_THRESHOLD = 0.7;
@@ -95,4 +96,135 @@ export async function findClusterForText(
         // Return null to allow the calling process to decide how to handle the failure.
         return null;
     }
+}
+
+/**
+ * Adds an article to an existing story by updating timestamps and regenerating the summary.
+ * @param storyId The ID of the story to update.
+ * @param articleId The ID of the article being added.
+ * @returns Promise<void>
+ */
+export async function addArticleToStory(storyId: number, articleId: number): Promise<void> {
+    try {
+        // 1. Update the story's last_article_added_at timestamp
+        const { error: updateError } = await supabase
+            .from("stories")
+            .update({ last_article_added_at: new Date().toISOString() })
+            .eq("id", storyId);
+
+        if (updateError) {
+            throw new Error(`Failed to update story timestamp: ${updateError.message}`);
+        }
+
+        // 2. Regenerate the story summary
+        await regenerateStorySummary(storyId);
+
+        console.log(`Successfully added article ${articleId} to story ${storyId} and updated summary`);
+    } catch (error) {
+        console.error(`Error adding article to story:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Regenerates a story's summary by analyzing all article summaries in the story.
+ * @param storyId The ID of the story to regenerate summary for.
+ * @returns Promise<void>
+ */
+export async function regenerateStorySummary(storyId: number): Promise<void> {
+    try {
+        // 1. Fetch all articles for this story and extract their summaries
+        const { data: articles, error: fetchError } = await supabase
+            .from("articles")
+            .select("title, bias_analysis")
+            .eq("story_id", storyId);
+
+        if (fetchError) {
+            throw new Error(`Failed to fetch articles for story: ${fetchError.message}`);
+        }
+
+        if (!articles || articles.length === 0) {
+            console.log(`No articles found for story ${storyId}`);
+            return;
+        }
+
+        // 2. Extract summaries from bias_analysis
+        const summaries = articles
+            .map((article) => {
+                try {
+                    const biasAnalysis = typeof article.bias_analysis === 'string' 
+                        ? JSON.parse(article.bias_analysis) 
+                        : article.bias_analysis;
+                    return biasAnalysis?.summary || `Article: ${article.title}`;
+                } catch {
+                    console.warn(`Failed to parse bias_analysis for article, using title instead`);
+                    return `Article: ${article.title}`;
+                }
+            })
+            .filter(Boolean);
+
+        if (summaries.length === 0) {
+            console.log(`No valid summaries found for story ${storyId}`);
+            return;
+        }
+
+        // 3. Generate a neutral story summary using OpenRouter
+        const newSummary = await generateStorySummary(summaries);
+
+        // 4. Update the story with the new summary
+        const { error: updateError } = await supabase
+            .from("stories")
+            .update({ summary: newSummary })
+            .eq("id", storyId);
+
+        if (updateError) {
+            throw new Error(`Failed to update story summary: ${updateError.message}`);
+        }
+
+        console.log(`Successfully regenerated summary for story ${storyId}`);
+    } catch (error) {
+        console.error(`Error regenerating story summary:`, error);
+        throw error;
+    }
+}
+
+const SUMMARY_MODEL = "google/gemini-2.0-flash-001";
+/**
+ * Generates a neutral story summary from multiple article summaries using OpenRouter.
+ * @param summaries Array of article summaries.
+ * @returns Promise<string> The generated story summary.
+ */
+async function generateStorySummary(summaries: string[]): Promise<string> {
+    const prompt = `
+You are a neutral news summarizer. Given multiple article summaries about the same story, create a single, comprehensive, and neutral summary that captures the key points across all articles.
+
+Requirements:
+- Be objective and neutral in tone
+- Combine insights from all provided summaries
+- Keep it concise (2-3 sentences maximum)
+- Focus on the main story elements and key developments
+- Avoid bias or editorial language
+- Return only the summary text, no additional formatting or preamble
+
+Article summaries:
+${summaries.map((summary, index) => `${index + 1}. ${summary}`).join('\n')}
+`;
+
+    const completion = await openrouter.chat.completions.create({
+        model: SUMMARY_MODEL,
+        messages: [
+            { role: "system", content: "You are a neutral news summarizer. Provide only the summary text without any additional formatting or preamble." },
+            { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+    });
+
+    const result = completion.choices[0].message.content;
+
+    if (!result) {
+        throw new Error("Failed to generate story summary: empty response");
+    }
+
+    return result.trim();
 } 
