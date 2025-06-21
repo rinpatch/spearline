@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { use } from "react"
 
 // Source data with detailed information
 const sourceData = {
@@ -117,8 +118,9 @@ const sourceData = {
   },
 }
 
-export default function SourcePage({ params }: { params: { slug: string } }) {
-  const source = sourceData[params.slug as keyof typeof sourceData]
+export default function SourcePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params)
+  const source = sourceData[slug as keyof typeof sourceData]
 
   if (!source) {
     return <div>Source not found</div>
