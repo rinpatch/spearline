@@ -74,6 +74,17 @@ export async function insertArticle(articleData: ArticleData) {
         throw new Error(`Failed to insert article: ${insertError.message}`);
     }
 
+    // 6. Update the story's last_article_added_at timestamp
+    const { error: updateError } = await supabase
+        .from("stories")
+        .update({ last_article_added_at: new Date().toISOString() })
+        .eq("id", storyIdToAssign);
+
+    if (updateError) {
+        console.error(`Failed to update story last_article_added_at: ${updateError.message}`);
+        // Don't throw here as the article was successfully inserted
+    }
+
     console.log(`Successfully inserted article ${newArticle.id} into story ${storyIdToAssign}`);
 
     return newArticle;
