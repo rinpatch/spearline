@@ -1,133 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Search } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-
-// Updated data structure with only the 6 specified Malaysian news sources
-const featuredArticle = {
-  id: 1,
-  title: "Malaysia's Digital Economy Initiative Receives Mixed Reception",
-  image: "/ringgit-banknotes.jpg",
-  summary:
-    "Government announces RM50 billion digital transformation plan focusing on AI and blockchain adoption across public sectors, drawing varied reactions across political spectrum.",
-  biasBreakdown: {
-    "Pro-Government": 40,
-    "Secular-Leaning": 25,
-    Multicultural: 20,
-    "Pro-Malay/Bumiputera": 15,
-  },
-  sources: [
-    { name: "Malay Mail", bias: "Pro-Government", slug: "malay-mail" },
-    { name: "The Sun", bias: "Secular-Leaning", slug: "the-sun" },
-    { name: "Sin Chew Daily", bias: "Multicultural", slug: "sin-chew-daily" },
-    { name: "Utusan Malaysia", bias: "Pro-Malay/Bumiputera", slug: "utusan-malaysia" },
-  ],
-  date: "2024-01-15",
-  totalSources: 4,
-}
-
-// Updated articles with the 6 specified sources
-const articles = [
-  {
-    id: 2,
-    title: "Education Reform Bill Sparks Debate Across Communities",
-    summary:
-      "New legislation aims tostandardize curriculum across vernacular schools while maintaining cultural identity, generating diverse reactions.",
-    biasBreakdown: {
-      Multicultural: 45,
-      "Pro-Government": 30,
-      "Pro-Islam": 25,
-    },
-    sources: [
-      { name: "Sin Chew Daily", bias: "Multicultural", slug: "sin-chew-daily" },
-      { name: "China Press", bias: "Multicultural", slug: "china-press" },
-      { name: "Malay Mail", bias: "Pro-Government", slug: "malay-mail" },
-      { name: "HarakahDaily", bias: "Pro-Islam", slug: "harakah-daily" },
-    ],
-    date: "2024-01-14",
-    totalSources: 4,
-    coverage: 85,
-  },
-  {
-    id: 3,
-    title: "Infrastructure Transparency Demands Gain Momentum",
-    summary: "Calls for public disclosure of contractor selection processes intensify across political divide.",
-    biasBreakdown: {
-      "Secular-Leaning": 50,
-      Multicultural: 30,
-      "Pro-Government": 20,
-    },
-    sources: [
-      { name: "The Sun", bias: "Secular-Leaning", slug: "the-sun" },
-      { name: "China Press", bias: "Multicultural", slug: "china-press" },
-      { name: "Malay Mail", bias: "Pro-Government", slug: "malay-mail" },
-    ],
-    date: "2024-01-14",
-    totalSources: 3,
-    coverage: 70,
-  },
-  {
-    id: 4,
-    title: "Islamic Banking Sector Shows Resilience Amid Global Uncertainty",
-    summary:
-      "Shariah-compliant financial institutions report strong growth, with analysis varying across different media perspectives.",
-    biasBreakdown: {
-      "Pro-Islam": 45,
-      "Pro-Government": 30,
-      "Secular-Leaning": 25,
-    },
-    sources: [
-      { name: "HarakahDaily", bias: "Pro-Islam", slug: "harakah-daily" },
-      { name: "Utusan Malaysia", bias: "Pro-Malay/Bumiputera", slug: "utusan-malaysia" },
-      { name: "Malay Mail", bias: "Pro-Government", slug: "malay-mail" },
-      { name: "The Sun", bias: "Secular-Leaning", slug: "the-sun" },
-    ],
-    date: "2024-01-13",
-    totalSources: 4,
-    coverage: 90,
-  },
-  {
-    id: 5,
-    title: "Vernacular Schools Funding Debate Intensifies",
-    summary: "Education allocation discussions reveal complex perspectives across Malaysia's diverse media landscape.",
-    biasBreakdown: {
-      Multicultural: 50,
-      "Pro-Malay/Bumiputera": 35,
-      "Pro-Government": 15,
-    },
-    sources: [
-      { name: "Sin Chew Daily", bias: "Multicultural", slug: "sin-chew-daily" },
-      { name: "China Press", bias: "Multicultural", slug: "china-press" },
-      { name: "Utusan Malaysia", bias: "Pro-Malay/Bumiputera", slug: "utusan-malaysia" },
-      { name: "Malay Mail", bias: "Pro-Government", slug: "malay-mail" },
-    ],
-    date: "2024-01-13",
-    totalSources: 4,
-    coverage: 65,
-  },
-]
-
-// Update blindspot articles
-const blindspotArticles = [
-  {
-    title: "Rural Internet Infrastructure Gaps",
-    missedBy: ["Pro-Government", "Pro-Malay/Bumiputera"],
-    coveredBy: ["Pro-Opposition", "Multicultural"],
-    impact: "High",
-    sources: 12,
-  },
-  {
-    title: "Youth Unemployment in Urban Areas",
-    missedBy: ["Pro-Islam", "Pro-Government"],
-    coveredBy: ["Secular-Leaning", "Pro-Opposition"],
-    impact: "Medium",
-    sources: 8,
-  },
-]
+import { getProcessedStories, ProcessedStory } from "@/lib/service/story-service"
 
 // Replace the BiasBadges component with:
 const BiasBadges = ({
@@ -136,7 +15,7 @@ const BiasBadges = ({
 }: { breakdown: Record<string, number>; size?: "default" | "small" }) => (
   <div className={`flex flex-wrap ${size === "small" ? "gap-1" : "gap-2"}`}>
     {Object.entries(breakdown)
-      .filter(([_, percentage]) => percentage > 0)
+      .filter(([, percentage]) => percentage > 0)
       .sort(([, a], [, b]) => b - a) // Sort by percentage descending
       .map(([bias, percentage]) => (
         <span
@@ -154,7 +33,9 @@ const BiasBadges = ({
                     ? "bg-green-50 text-green-700 border border-green-100"
                     : bias === "Secular-Leaning"
                       ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
-                      : "bg-orange-50 text-orange-700 border border-orange-100"
+                      : bias === "Multicultural"
+                        ? "bg-orange-50 text-orange-700 border border-orange-100"
+                        : "bg-gray-50 text-gray-700 border border-gray-100"
           }`}
         >
           {bias === "Pro-Government"
@@ -167,7 +48,9 @@ const BiasBadges = ({
                   ? "Islam"
                   : bias === "Secular-Leaning"
                     ? "Secular"
-                    : "Multi"}{" "}
+                    : bias === "Multicultural"
+                      ? "Multi"
+                      : "Neutral"}{" "}
           {percentage}%
         </span>
       ))}
@@ -180,7 +63,11 @@ const SourcesList = ({
   size = "default",
   linkable = true,
 }: {
-  sources: any[]
+  sources: Array<{
+    name: string;
+    bias: string;
+    slug: string;
+  }>;
   size?: "default" | "small"
   linkable?: boolean
 }) => (
@@ -216,6 +103,75 @@ const SourcesList = ({
 
 export default function SpearlineHomepage() {
   const [searchQuery, setSearchQuery] = useState("")
+  const [stories, setStories] = useState<ProcessedStory[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchStories() {
+      try {
+        setLoading(true)
+        const fetchedStories = await getProcessedStories(10)
+        setStories(fetchedStories)
+      } catch (err) {
+        console.error('Error fetching stories:', err)
+        setError('Failed to load stories')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStories()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading stories...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const featuredStory = stories[0]
+  const topStories = stories.slice(1, 4)
+  const remainingStories = stories.slice(4)
+
+  // Mock blindspot data - this would come from the backend later
+  const blindspotArticles = [
+    {
+      title: "Rural Internet Infrastructure Gaps",
+      missedBy: ["Pro-Government", "Pro-Malay/Bumiputera"],
+      coveredBy: ["Pro-Opposition", "Multicultural"],
+      impact: "High",
+      sources: 12,
+    },
+    {
+      title: "Youth Unemployment in Urban Areas",
+      missedBy: ["Pro-Islam", "Pro-Government"],
+      coveredBy: ["Secular-Leaning", "Pro-Opposition"],
+      impact: "Medium",
+      sources: 8,
+    },
+  ]
 
   return (
     <div className="min-h-screen bg-white">
@@ -248,21 +204,21 @@ export default function SpearlineHomepage() {
         <div className="lg:hidden mb-6">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Top News Stories</h2>
           <div className="space-y-3">
-            {articles.slice(0, 3).map((article) => (
-              <Link key={article.id} href={`/article/${article.id}`}>
+            {topStories.map((story) => (
+              <Link key={story.id} href={`/article/${story.id}`}>
                 <div className="border border-gray-200 rounded-lg p-3 bg-white hover:shadow-md transition-shadow">
                   <h3 className="text-sm font-semibold text-gray-900 leading-tight mb-2 hover:text-blue-600 cursor-pointer">
-                    {article.title}
+                    {story.title}
                   </h3>
                   <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                    <span>{article.totalSources} sources</span>
-                    <span>{article.date}</span>
+                    <span>{story.totalSources} sources</span>
+                    <span>{story.date}</span>
                   </div>
-                  <SourcesList sources={article.sources} size="small" linkable={false} />
+                  <SourcesList sources={story.sources} size="small" linkable={false} />
                   <div className="mt-2">
-                    <BiasBadges breakdown={article.biasBreakdown} size="small" />
+                    <BiasBadges breakdown={story.biasBreakdown} size="small" />
                   </div>
-                  <div className="mt-2 text-xs text-gray-600">{article.coverage}% coverage</div>
+                  <div className="mt-2 text-xs text-gray-600">{story.coverage}% coverage</div>
                 </div>
               </Link>
             ))}
@@ -275,21 +231,21 @@ export default function SpearlineHomepage() {
             <div className="sticky top-20">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Top News Stories</h2>
               <div className="space-y-4">
-                {articles.slice(0, 3).map((article) => (
-                  <Link key={article.id} href={`/article/${article.id}`}>
+                {topStories.map((story) => (
+                  <Link key={story.id} href={`/article/${story.id}`}>
                     <div className="border-b border-gray-200 pb-3 last:border-b-0 hover:bg-gray-50 p-2 rounded -m-2">
                       <h3 className="text-sm font-semibold text-gray-900 leading-tight mb-2 hover:text-blue-600 cursor-pointer">
-                        {article.title}
+                        {story.title}
                       </h3>
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                        <span>{article.totalSources} sources</span>
-                        <span>{article.date}</span>
+                        <span>{story.totalSources} sources</span>
+                        <span>{story.date}</span>
                       </div>
-                      <SourcesList sources={article.sources} size="small" linkable={false} />
+                      <SourcesList sources={story.sources} size="small" linkable={false} />
                       <div className="mt-2">
-                        <BiasBadges breakdown={article.biasBreakdown} size="small" />
+                        <BiasBadges breakdown={story.biasBreakdown} size="small" />
                       </div>
-                      <div className="mt-2 text-xs text-gray-600">{article.coverage}% coverage</div>
+                      <div className="mt-2 text-xs text-gray-600">{story.coverage}% coverage</div>
                     </div>
                   </Link>
                 ))}
@@ -299,41 +255,43 @@ export default function SpearlineHomepage() {
 
           {/* Main Content Area */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Featured Article - More Compact */}
-            <Link href={`/article/${featuredArticle.id}`}>
-              <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer">
-                <div className="md:flex">
-                  <div className="md:w-2/5">
-                    <img
-                      src={featuredArticle.image || "/placeholder.svg"}
-                      alt="Featured article"
-                      className="w-full h-48 md:h-full object-cover"
-                    />
-                  </div>
-                  <div className="md:w-3/5 p-5">
-                    <div className="flex items-center space-x-2 text-xs text-gray-500 mb-2">
-                      <span className="font-medium">{featuredArticle.totalSources} sources</span>
-                      <span>•</span>
-                      <span>{featuredArticle.date}</span>
+            {/* Featured Story - More Compact */}
+            {featuredStory && (
+              <Link href={`/article/${featuredStory.id}`}>
+                <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer">
+                  <div className="md:flex">
+                    <div className="md:w-2/5">
+                      <img
+                        src="/ringgit-banknotes.jpg"
+                        alt="Featured story"
+                        className="w-full h-48 md:h-full object-cover"
+                      />
                     </div>
-                    <h2 className="text-xl font-bold text-gray-900 mb-3 leading-tight hover:text-blue-600">
-                      {featuredArticle.title}
-                    </h2>
-                    <p className="text-gray-700 mb-4 text-sm leading-relaxed">{featuredArticle.summary}</p>
+                    <div className="md:w-3/5 p-5">
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 mb-2">
+                        <span className="font-medium">{featuredStory.totalSources} sources</span>
+                        <span>•</span>
+                        <span>{featuredStory.date}</span>
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-900 mb-3 leading-tight hover:text-blue-600">
+                        {featuredStory.title}
+                      </h2>
+                      <p className="text-gray-700 mb-4 text-sm leading-relaxed">{featuredStory.summary}</p>
 
-                    {/* Sources List */}
-                    <div className="mb-3">
-                      <SourcesList sources={featuredArticle.sources} linkable={false} />
-                    </div>
+                      {/* Sources List */}
+                      <div className="mb-3">
+                        <SourcesList sources={featuredStory.sources} linkable={false} />
+                      </div>
 
-                    {/* Bias Analysis */}
-                    <div className="mb-3">
-                      <BiasBadges breakdown={featuredArticle.biasBreakdown} />
+                      {/* Bias Analysis */}
+                      <div className="mb-3">
+                        <BiasBadges breakdown={featuredStory.biasBreakdown} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            </Link>
+                </Card>
+              </Link>
+            )}
 
             {/* Search Bar - More Compact */}
             <div className="flex gap-3 items-center bg-gray-50 p-3 rounded-lg">
@@ -348,33 +306,33 @@ export default function SpearlineHomepage() {
               </div>
             </div>
 
-            {/* Article Grid - More Compact */}
+            {/* Story Grid - More Compact */}
             <div className="grid md:grid-cols-2 gap-4">
-              {articles.slice(1).map((article) => (
-                <Link key={article.id} href={`/article/${article.id}`}>
+              {remainingStories.map((story) => (
+                <Link key={story.id} href={`/article/${story.id}`}>
                   <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer h-full">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                        <span className="font-medium">{article.totalSources} sources</span>
-                        <span>{article.date}</span>
+                        <span className="font-medium">{story.totalSources} sources</span>
+                        <span>{story.date}</span>
                       </div>
                       <h3 className="font-semibold text-gray-900 mb-2 leading-tight text-sm hover:text-blue-600">
-                        {article.title}
+                        {story.title}
                       </h3>
-                      <p className="text-gray-700 mb-3 text-xs leading-relaxed">{article.summary}</p>
+                      <p className="text-gray-700 mb-3 text-xs leading-relaxed">{story.summary}</p>
 
                       {/* Sources */}
                       <div className="mb-2">
-                        <SourcesList sources={article.sources} size="small" linkable={false} />
+                        <SourcesList sources={story.sources} size="small" linkable={false} />
                       </div>
 
                       {/* Bias Analysis */}
                       <div className="mb-2">
-                        <BiasBadges breakdown={article.biasBreakdown} />
+                        <BiasBadges breakdown={story.biasBreakdown} />
                       </div>
 
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-500">{article.coverage}% coverage</span>
+                        <span className="text-xs text-gray-500">{story.coverage}% coverage</span>
                       </div>
                     </CardContent>
                   </Card>
