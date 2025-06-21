@@ -13,17 +13,21 @@ interface SimilarArticle {
 }
 
 /**
- * Creates a new story with a representative title.
- * @param representativeTitle The title for the new story.
+ * Creates a new story with a representative title generated from the first article.
+ * @param firstArticleTitle The title of the first article to create a neutral title from.
  * @returns The ID of the newly created story.
  */
-export async function createStory(representativeTitle: string): Promise<number> {
-    console.log(`Creating a new story for: "${representativeTitle}"`);
+export async function createStory(firstArticleTitle: string): Promise<number> {
+    console.log(`Creating a new story for: "${firstArticleTitle}"`);
+    
+    // Generate a neutral title from the first article title
+    const neutralTitle = await generateStoryTitle([firstArticleTitle]);
+    
     const { data: newStory, error: createError } = await supabase
         .from("stories")
         .insert({
-            representative_title: representativeTitle,
-            summary: `This story is about: ${representativeTitle}`, // Placeholder
+            representative_title: neutralTitle,
+            summary: `This story is about: ${neutralTitle}`, // Placeholder
         })
         .select("id")
         .single();
@@ -33,7 +37,7 @@ export async function createStory(representativeTitle: string): Promise<number> 
             `Failed to create a new story: ${createError?.message}`
         );
     }
-    console.log(`[Story] Created new story ${newStory.id}.`);
+    console.log(`[Story] Created new story ${newStory.id} with title: "${neutralTitle}"`);
     return newStory.id;
 }
 
@@ -99,7 +103,7 @@ export async function findClusterForText(
 }
 
 /**
- * Adds an article to an existing story by updating timestamps and regenerating the summary.
+ * Adds an article to an existing story by updating timestamps, regenerating the summary, and updating the title.
  * @param storyId The ID of the story to update.
  * @param articleId The ID of the article being added.
  * @returns Promise<void>
@@ -119,9 +123,64 @@ export async function addArticleToStory(storyId: number, articleId: number): Pro
         // 2. Regenerate the story summary
         await regenerateStorySummary(storyId);
 
-        console.log(`Successfully added article ${articleId} to story ${storyId} and updated summary`);
+        // 3. Regenerate the story title based on all articles
+        await regenerateStoryTitle(storyId);
+
+        console.log(`Successfully added article ${articleId} to story ${storyId} and updated summary and title`);
     } catch (error) {
         console.error(`Error adding article to story:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Regenerates a story's title by analyzing all article titles in the story.
+ * @param storyId The ID of the story to regenerate title for.
+ * @returns Promise<void>
+ */
+export async function regenerateStoryTitle(storyId: number): Promise<void> {
+    try {
+        // 1. Fetch all articles for this story and extract their titles
+        const { data: articles, error: fetchError } = await supabase
+            .from("articles")
+            .select("title")
+            .eq("story_id", storyId);
+
+        if (fetchError) {
+            throw new Error(`Failed to fetch articles for story: ${fetchError.message}`);
+        }
+
+        if (!articles || articles.length === 0) {
+            console.log(`No articles found for story ${storyId}`);
+            return;
+        }
+
+        // 2. Extract titles
+        const titles = articles
+            .map((article) => article.title)
+            .filter(Boolean);
+
+        if (titles.length === 0) {
+            console.log(`No valid titles found for story ${storyId}`);
+            return;
+        }
+
+        // 3. Generate a neutral story title using OpenRouter
+        const newTitle = await generateStoryTitle(titles);
+
+        // 4. Update the story with the new title
+        const { error: updateError } = await supabase
+            .from("stories")
+            .update({ representative_title: newTitle })
+            .eq("id", storyId);
+
+        if (updateError) {
+            throw new Error(`Failed to update story title: ${updateError.message}`);
+        }
+
+        console.log(`Successfully regenerated title for story ${storyId}: "${newTitle}"`);
+    } catch (error) {
+        console.error(`Error regenerating story title:`, error);
         throw error;
     }
 }
@@ -186,6 +245,49 @@ export async function regenerateStorySummary(storyId: number): Promise<void> {
         console.error(`Error regenerating story summary:`, error);
         throw error;
     }
+}
+
+const TITLE_MODEL = "google/gemini-2.0-flash-001";
+/**
+ * Generates a neutral story title from multiple article titles using OpenRouter.
+ * @param titles Array of article titles.
+ * @returns Promise<string> The generated story title.
+ */
+async function generateStoryTitle(titles: string[]): Promise<string> {
+    const prompt = `
+You are a neutral news headline writer. Given multiple article headlines about the same story, create a single, comprehensive, and neutral headline that captures the main event across all articles.
+
+Requirements:
+- Be objective and neutral in tone
+- Combine the key elements from all provided headlines
+- Keep it concise (maximum 15 words)
+- Focus on the main event or development
+- Write in clear, professional English
+- Avoid bias, sensational language, or editorial commentary
+- Return only the headline text, no additional formatting or preamble
+- Do not use quotes around the headline
+
+Article headlines:
+${titles.map((title, index) => `${index + 1}. ${title}`).join('\n')}
+`;
+
+    const completion = await openrouter.chat.completions.create({
+        model: TITLE_MODEL,
+        messages: [
+            { role: "system", content: "You are a neutral news headline writer. Provide only the headline text without any additional formatting, quotes, or preamble." },
+            { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 50,
+    });
+
+    const result = completion.choices[0].message.content;
+
+    if (!result) {
+        throw new Error("Failed to generate story title: empty response");
+    }
+
+    return result.trim().replace(/^["']|["']$/g, ''); // Remove quotes if present
 }
 
 const SUMMARY_MODEL = "google/gemini-2.0-flash-001";
