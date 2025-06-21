@@ -1,197 +1,244 @@
-import OpenAI from "openai";
+// /app/api/scrape/route.ts
+
 import { Redis } from "@upstash/redis";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-server";
+import { siteConfigs, SiteConfig } from "@/lib/meridianconfig";
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL!;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN!;
-const openRouterKey = process.env.OPENROUTER_API_KEY!;
-
+// --- Environment Variable Validation ---
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+if (!redisUrl ||!redisToken) {
+  throw new Error("Missing Upstash Redis environment variables.");
+}
 const redis = new Redis({ url: redisUrl, token: redisToken });
 
-const openrouter = new OpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: openRouterKey,
-});
-
 // --- Constants ---
-const EMBEDDING_MODEL = "text-embedding-3-small"; // Cost-effective and powerful
-const ANALYSIS_MODEL = "deepseek/deepseek-chat"; // DeepSeek for analysis
-const DEDUPLICATION_SET_KEY = "meridian:article_url_hashes"; // Redis set key
+const DEDUPLICATION_SET_KEY = "meridian:article_url_hashes";
+const DELAY_BETWEEN_REQUESTS = 1000; // 1 second delay to be a good web citizen
+const MAX_PAGINATION_DEPTH = 5; // Limit crawl depth to prevent infinite loops
+const REQUEST_TIMEOUT = 10000; // 10-second timeout for requests
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 MeridianBot/1.0';
 
-/**
- * Generates a SHA-256 hash for a given URL for consistent deduplication.
- * @param url The URL to hash.
- * @returns The SHA-256 hash as a hex string.
- */
+// --- Utility Functions ---
 const getUrlHash = (url: string): string => {
-    return createHash("sha256").update(url).digest("hex");
+  return createHash("sha256").update(url).digest("hex");
 };
 
-/**
- * The master AI analysis prompt. This is a critical asset.
- * It instructs the LLM to act as an expert and return structured JSON.
- * @param articleTitle The title of the article.
- * @param articleContent The full text content of the article.
- * @returns A structured prompt string.
- */
-const buildAnalysisPrompt = (
-    articleTitle: string,
-    articleContent: string
-): string => {
-    return `
-     You are an expert Malaysian media analyst. Your task is to analyze the provided news article objectively.
-     Do not include any preambles, apologies, or text outside of the JSON object.
-     Your response MUST be a single, valid JSON object following this exact schema:
-  
-     {
-       "summary": "A brief, neutral, one-sentence summary of the article's main point.",
-       "sentiment_overall": {
-         "score": <float between -1.0 (very negative) and 1.0 (very positive)>,
-         "label": "<'Positive' | 'Negative' | 'Neutral'>"
-       },
-       "sentiment_towards_gov": {
-         "score": <float between -1.0 and 1.0, where > 0 is favorable to the current government>,
-         "explanation": "Briefly explain the reasoning for the score."
-       },
-       "topics_detected": ["<list of key topics, e.g., 'Economy', 'Politics', 'Human Rights'>"],
-       "3R_flags": {
-           "race": <boolean>,
-           "religion": <boolean>,
-           "royalty": <boolean>,
-           "explanation": "Identify if Race, Religion, or Royalty are a central theme. DO NOT judge or provide opinion, only flag their presence."
-       }
-     }
-  
-     --- ARTICLE START ---
-     Title: ${articleTitle}
-     Content: ${articleContent.substring(0, 8000)}
-     --- ARTICLE END ---
-    `;
+const normalizeUrl = (href: string, baseUrl: string): string | null => {
+  try {
+    return new URL(href, baseUrl).toString();
+  } catch (error) {
+    return null;
+  }
 };
 
-/**
- * API Endpoint: /api/scrape-site
- * Triggered by a QStash message for a single news source.
- * It performs the following steps:
- * 1. Scrapes the source's homepage for article links.
- * 2. For each link, checks Redis to see if it has been processed before.
- * 3. If new, scrapes the full article content.
- * 4. Calls OpenRouter to get a vector embedding.
- * 5. Calls OpenRouter with a detailed prompt to get a bias/content analysis.
- * 6. Inserts the article, embedding, and analysis into the Supabase database.
- */
-export async function POST(req: Request) {
-    const { sourceId, sourceName, baseUrl } = await req.json();
-
+const parseDate = (dateString: string | undefined): string => {
+    if (!dateString) return new Date().toISOString();
     try {
-        // 1. Scrape homepage for article URLs
-        // A robust implementation would store selectors in the `sources` table.
-        const { data: pageHtml } = await axios.get(baseUrl);
-        const $ = cheerio.load(pageHtml);
-        const articleUrls = new Set<string>();
-
-        $("a[href]").each((_, el) => {
-            let href = $(el).attr("href");
-            if (href && href.startsWith("/")) {
-                href = new URL(href, baseUrl).toString();
-            }
-            // Add filtering logic here to only include valid article links
-            if (href && href.startsWith(baseUrl) && href.includes("news")) {
-                // Example filter
-                articleUrls.add(href);
-            }
-        });
-
-        console.log(
-            `[${sourceName}] Found ${articleUrls.size} potential articles.`
-        );
-
-        for (const url of Array.from(articleUrls)) {
-            const urlHash = getUrlHash(url);
-
-            // 2. Deduplication Check with Upstash Redis
-            const isMember = await redis.sismember(DEDUPLICATION_SET_KEY, urlHash);
-            if (isMember) {
-                console.log(
-                    `[${sourceName}] Skipping already processed article: ${url}`
-                );
-                continue;
-            }
-
-            try {
-                // 3. Scrape full article content
-                // NOTE: This also requires site-specific selectors for title and content.
-                const { data: articleHtml } = await axios.get(url);
-                const $$ = cheerio.load(articleHtml);
-                const title = $$("h1").first().text().trim(); // Example selector
-                const content = $$(".article-content").text().trim(); // Example selector
-
-                if (!title || !content) {
-                    console.warn(
-                        `[${sourceName}] Could not extract title/content from: ${url}`
-                    );
-                    continue;
-                }
-
-                // 4. Generate Embedding via OpenRouter
-                const embeddingResponse = await openrouter.embeddings.create({
-                    model: EMBEDDING_MODEL,
-                    input: `${title}\n\n${content}`,
-                });
-                const embedding = embeddingResponse.data[0].embedding;
-
-                // 5. Generate AI Analysis via OpenRouter
-                const analysisPrompt = buildAnalysisPrompt(title, content);
-                const analysisResponse = await openrouter.chat.completions.create({
-                    model: ANALYSIS_MODEL,
-                    messages: [{ role: "user", content: analysisPrompt }],
-                    response_format: { type: "json_object" },
-                });
-                const analysisJson = JSON.parse(
-                    analysisResponse.choices[0].message.content!
-                );
-
-                // 6. Insert into Supabase
-                const { error: insertError } = await supabase
-                    .from("articles")
-                    .insert({
-                        source_id: sourceId,
-                        url: url,
-                        url_hash: urlHash,
-                        title: title,
-                        full_text_content: content,
-                        published_at: new Date().toISOString(), // Placeholder, ideally parse from page
-                        embedding: embedding,
-                        bias_analysis: analysisJson,
-                        llm_analysis_model: ANALYSIS_MODEL,
-                    });
-
-                if (insertError) throw insertError;
-
-                // If insert is successful, add hash to Redis set to prevent re-processing
-                await redis.sadd(DEDUPLICATION_SET_KEY, urlHash);
-                console.log(
-                    `[${sourceName}] Successfully processed and stored: ${title}`
-                );
-            } catch (articleError) {
-                console.error(
-                    `[${sourceName}] Failed to process article ${url}:`,
-                    articleError
-                );
-            }
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+            // Attempt to parse non-standard formats if necessary
+            // For now, fall back to current date
+            return new Date().toISOString();
         }
-
-        return NextResponse.json({ message: `Scraping completed for ${sourceName}.` });
+        return date.toISOString();
     } catch (error) {
-        console.error(`[${sourceName}] Major error in scrape-site handler:`, error);
-
-        return NextResponse.json({
-            error: "Internal Server Error",
-            details: (error as Error).message,
-        }, { status: 500 });
+        return new Date().toISOString();
     }
-} 
+};
+
+// --- Core Scraping Logic ---
+
+/**
+ * Recursively scrapes pages to discover article URLs.
+ * @param config - The configuration for the target site.
+ * @param pageUrl - The URL of the page to scrape.
+ * @param articleUrls - A Set to store discovered article URLs.
+ * @param visitedPages - A Set to prevent re-scraping the same page.
+ * @param depth - The current pagination depth.
+ */
+async function crawlForArticleLinks(
+  config: SiteConfig,
+  pageUrl: string,
+  articleUrls: Set<string>,
+  visitedPages: Set<string>,
+  depth: number
+): Promise<void> {
+  if (depth >= MAX_PAGINATION_DEPTH |
+| visitedPages.has(pageUrl)) {
+    return;
+  }
+  visitedPages.add(pageUrl);
+  console.log(`[${config.sourceName}] Crawling page (Depth ${depth}): ${pageUrl}`);
+
+  try {
+    const { data: pageHtml } = await axios.get(pageUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      timeout: REQUEST_TIMEOUT,
+    });
+    const $ = cheerio.load(pageHtml);
+
+    // Discover article links on the current page
+    $('a[href]').each((_, el) => {
+      const href = $(el).attr('href');
+      if (!href) return;
+
+      const fullUrl = normalizeUrl(href, config.baseUrl);
+      if (fullUrl && config.discovery.urlPattern.test(fullUrl)) {
+        articleUrls.add(fullUrl);
+      }
+    });
+
+    // Handle pagination
+    if (config.pagination.type === 'next_button' && config.pagination.selector) {
+      const nextPageLink = $(config.pagination.selector).first().attr('href');
+      if (nextPageLink) {
+        const nextPageUrl = normalizeUrl(nextPageLink, config.baseUrl);
+        if (nextPageUrl) {
+          await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+          await crawlForArticleLinks(config, nextPageUrl, articleUrls, visitedPages, depth + 1);
+        }
+      }
+    }
+    // Note: 'infinite_scroll' would require a dynamic fetcher (e.g., Puppeteer)
+    // and is not implemented in this static version.
+
+  } catch (error) {
+    console.error(`[${config.sourceName}] Failed to crawl page ${pageUrl}:`, error);
+  }
+}
+
+/**
+ * Fetches, parses, and stores a single article.
+ * @param url - The URL of the article to process.
+ * @param config - The configuration for the target site.
+ */
+async function processArticle(url: string, config: SiteConfig): Promise<boolean> {
+  const urlHash = getUrlHash(url);
+
+  const isMember = await redis.sismember(DEDUPLICATION_SET_KEY, urlHash);
+  if (isMember) {
+    console.log(`[${config.sourceName}] Skipping already processed article: ${url}`);
+    return false;
+  }
+
+  try {
+    await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
+    
+    const { data: articleHtml } = await axios.get(url, {
+      headers: { 'User-Agent': USER_AGENT },
+      timeout: REQUEST_TIMEOUT,
+    });
+    const $ = cheerio.load(articleHtml);
+
+    // --- Extraction ---
+    const title = $(config.extraction.titleSelector).first().text().trim();
+    const contentElement = $(config.extraction.contentSelector).first();
+
+    // --- Cleaning ---
+    if (config.extraction.elementsToRemove) {
+      config.extraction.elementsToRemove.forEach(selector => {
+        contentElement.find(selector).remove();
+      });
+    }
+    let content = contentElement.text().trim().replace(/\s+/g, ' ');
+
+    // --- Date Parsing ---
+    const dateString = $('meta[property="article:published_time"]').attr('content') |
+| $(config.extraction.dateSelector).attr('datetime') |
+| $(config.extraction.dateSelector).text();
+    const published_at = parseDate(dateString);
+
+    // --- Validation ---
+    if (!title |
+| title.length < 5 ||!content |
+| content.length < 50) {
+      console.warn(`[${config.sourceName}] Insufficient content from: ${url}`);
+      return false;
+    }
+
+    // --- Database Insertion ---
+    const { error: insertError } = await supabase.from("articles").insert({
+      source_id: config.sourceId,
+      url: url,
+      url_hash: urlHash,
+      title: title,
+      full_text_content: content,
+      published_at: published_at,
+    });
+
+    if (insertError) throw insertError;
+
+    await redis.sadd(DEDUPLICATION_SET_KEY, urlHash);
+    console.log(`[${config.sourceName}] Successfully processed and stored: ${title}`);
+    return true;
+
+  } catch (error: unknown) {
+    // Enhanced error handling
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      console.warn(`[${config.sourceName}] HTTP Error ${status} for article ${url}.`);
+    } else {
+      console.error(`[${config.sourceName}] Failed to process article ${url}:`, (error as Error).message);
+    }
+    return false;
+  }
+}
+
+
+// --- API Route Handler ---
+export async function POST(req: Request) {
+  const { sourceId } = await req.json();
+
+  if (!sourceId) {
+    return NextResponse.json({ error: "Missing sourceId" }, { status: 400 });
+  }
+
+  const config = siteConfigs.find(c => c.sourceId === sourceId);
+
+  if (!config) {
+    return NextResponse.json({ error: `Configuration for sourceId '${sourceId}' not found.` }, { status: 404 });
+  }
+  
+  // Guard against trying to run dynamic scrapes with this static-only implementation
+  if (config.fetchStrategy === 'dynamic') {
+      console.warn(`[${config.sourceName}] Skipping scrape: This source requires a dynamic fetch strategy (headless browser) which is not implemented in this version.`);
+      return NextResponse.json({ message: `Scraping skipped for ${config.sourceName} (requires dynamic fetcher).` });
+  }
+
+  console.log(`[${config.sourceName}] Starting scrape job.`);
+
+  try {
+    const articleUrls = new Set<string>();
+    const visitedPages = new Set<string>();
+    
+    // Crawl all start URLs for the source
+    for (const startUrl of config.discovery.startUrls) {
+        await crawlForArticleLinks(config, startUrl, articleUrls, visitedPages, 0);
+    }
+
+    console.log(`[${config.sourceName}] Discovered ${articleUrls.size} potential articles.`);
+    let processedCount = 0;
+
+    for (const url of Array.from(articleUrls)) {
+      if (await processArticle(url, config)) {
+        processedCount++;
+      }
+    }
+
+    const summary = `Scraping completed for ${config.sourceName}. Processed ${processedCount} of ${articleUrls.size} discovered articles.`;
+    console.log(`[${config.sourceName}] ${summary}`);
+    return NextResponse.json({ message: summary });
+
+  } catch (error: unknown) {
+    console.error(`[${config.sourceName}] Critical error in scrape handler:`, error);
+    return NextResponse.json({ 
+      error: "Internal Server Error",
+      details: (error as Error).message,
+    }, { status: 500 });
+  }
+}
