@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabase-server";
-import { getEmbeddings } from "@/lib/openai";
+import { supabase } from "@/lib/service/supabase-server";
+import { getEmbeddings } from "@/lib/service/openai";
 
 // This is a tunable threshold. A higher value means articles need to be more similar to be clustered.
 const SIMILARITY_THRESHOLD = 0.7;

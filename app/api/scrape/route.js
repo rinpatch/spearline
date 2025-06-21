@@ -5,7 +5,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase-server";
+import { supabase } from "@/lib/service/supabase-server";
 import { siteConfigs, SiteConfig } from "@/lib/meridianconfig";
 
 // --- Environment Variable Validation ---

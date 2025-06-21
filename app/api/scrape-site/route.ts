@@ -3,7 +3,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { createHash } from "crypto";
 import { NextApiRequest, NextApiResponse } from 'next';
-import { supabase } from "@/lib/supabase-server"; // Assuming shared Supabase client
+import { supabase } from "@/lib/service/supabase-server"; // Assuming shared Supabase client
 import { siteConfigs, SiteConfig } from "@/lib/meridian.config";
 
 // --- Environment Variable Validation ---

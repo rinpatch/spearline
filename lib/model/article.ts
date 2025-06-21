@@ -1,6 +1,6 @@
-import { supabase } from "@/lib/supabase-server";
-import { createStory } from "@/lib/story";
-import { getEmbeddings } from "@/lib/openai";
+import { supabase } from "@/lib/service/supabase-server";
+import { createStory } from "@/lib/model/story";
+import { getEmbeddings } from "@/lib/service/openai";
 
 interface BiasAnalysis {
     summary: string;

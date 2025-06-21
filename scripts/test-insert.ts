@@ -1,7 +1,7 @@
 // scripts/test-insert.ts
 import "dotenv/config";
-import { findClusterForText } from "../lib/story";
-import { insertArticle } from "../lib/article";
+import { findClusterForText } from "../lib/model/story";
+import { insertArticle } from "../lib/model/article";
 
 async function main() {
     console.log("--- Running Article Insertion Test ---");

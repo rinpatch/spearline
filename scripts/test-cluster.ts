@@ -1,6 +1,6 @@
 // scripts/test-cluster.ts
 import 'dotenv/config'; // Make sure environment variables are loaded
-import { getEmbeddings } from '@/lib/openai';
+import { getEmbeddings } from '@/lib/service/openai';
 
 /**
  * A standalone script to test the article clustering functionality.
