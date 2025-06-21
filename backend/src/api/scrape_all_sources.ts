@@ -30,8 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // 1. Fetch all news sources from the 'sources_msia.sources' table.
         const { data: sources, error } = await supabase
             .from('sources')
-            .select('id, name, base_url')
-            .schema('sources_msia');
+            .select('id, name, base_url');
 
         if (error) {
             console.error('Supabase error fetching sources:', error);

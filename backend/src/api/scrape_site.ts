@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import OpenAI from 'openai';
 
 import { Redis } from '@upstash/redis';
 
@@ -191,7 +192,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   
 
-        // A robust implementation would store selectors in the `sources_msia.sources` table.
+        // A robust implementation would store selectors in the `sources` table.
 
         const { data: pageHtml } = await axios.get(baseUrl);
 
@@ -308,8 +309,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 const { error: insertError } = await supabase
 
                     .from('articles')
-
-                    .schema('content_msia')
 
                     .insert({
 
