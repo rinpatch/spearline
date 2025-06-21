@@ -11,7 +11,7 @@ type Source = {
 
 // --- Configuration ---
 const qstashToken = process.env.QSTASH_TOKEN!;
-const scrapeSiteApiUrl = process.env.SCRAPE_SITE_API_URL!;
+const scrapeSiteApiUrl = `${process.env.APP_BASE_URL}/api/scrape`;
 
 // --- Initialize Clients ---
 const qstashClient = new Client({ token: qstashToken });
@@ -32,7 +32,6 @@ export async function POST(req: NextRequest) {
     try {
         console.log("Scrape-all-sources job started.");
 
-        // 1. Fetch all news sources from the 'sources' table.
         const { data: sources, error } = await supabase
             .from('sources')
             .select('id, name, base_url');
@@ -49,23 +48,16 @@ export async function POST(req: NextRequest) {
 
         console.log(`Found ${sources.length} sources. Queuing scrape jobs...`);
 
-        // 2. For each source, publish a message to the QStash queue.
-        // The message body contains the information needed by the scrape-site function.
-        const publishPromises = sources.map((source: Source) =>
-            qstashClient.publishJSON({
-                // The endpoint that will process this message
-                url: scrapeSiteApiUrl,
-                // The payload sent to the endpoint
-                body: {
-                    sourceId: source.id,
-                    sourceName: source.name,
-                    baseUrl: source.base_url,
-                },
-                // Optional: Add a delay or other QStash features here if needed
-            })
-        );
+        const messages = sources.map((source: Source) => ({
+            url: scrapeSiteApiUrl,
+            body: {
+                sourceId: source.id,
+            },
+        }));
 
-        await Promise.all(publishPromises);
+        if (messages.length > 0) {
+            await qstashClient.batchJSON(messages);
+        }
 
         console.log(`Successfully queued ${sources.length} scraping jobs.`);
         return NextResponse.json({ message: `Successfully queued ${sources.length} jobs.` }, { status: 200 });
