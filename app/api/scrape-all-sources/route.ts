@@ -1,6 +1,6 @@
 import { Client } from "@upstash/qstash";
-import { NextApiRequest, NextApiResponse } from 'next'; // For Vercel
-import { supabase } from '../lib/supabase';
+import { NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase-server';
 
 type Source = {
     id: number;
@@ -22,11 +22,7 @@ const qstashClient = new Client({ token: qstashToken });
  * scraping jobs for each one to a QStash queue. This decouples the master
  * trigger from the individual scraping tasks for resilience and scalability.
  */
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
-
+export async function POST() {
     try {
         console.log("Scrape-all-sources job started.");
 
@@ -37,12 +33,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         if (error) {
             console.error('Supabase error fetching sources:', error);
-            throw new Error(`Supabase error: ${error.message}`);
+            return NextResponse.json({ error: `Supabase error: ${error.message}` }, { status: 500 });
         }
 
         if (!sources || sources.length === 0) {
             console.warn("No sources found in the database. Nothing to scrape.");
-            return res.status(200).json({ message: "No sources to scrape." });
+            return NextResponse.json({ message: "No sources to scrape." }, { status: 200 });
         }
 
         console.log(`Found ${sources.length} sources. Queuing scrape jobs...`);
@@ -66,10 +62,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await Promise.all(publishPromises);
 
         console.log(`Successfully queued ${sources.length} scraping jobs.`);
-        res.status(200).json({ message: `Successfully queued ${sources.length} jobs.` });
+        return NextResponse.json({ message: `Successfully queued ${sources.length} jobs.` }, { status: 200 });
 
     } catch (error) {
         console.error("Error in scrape-all-sources handler:", error);
-        res.status(500).json({ error: 'Internal Server Error', details: (error as Error).message });
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        return NextResponse.json({ error: 'Internal Server Error', details: errorMessage }, { status: 500 });
     }
-}
+} 
