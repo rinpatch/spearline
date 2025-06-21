@@ -29,8 +29,6 @@ interface ArticleData {
     title: string;
     full_text_content: string;
     published_at: Date;
-    bias_analysis: BiasAnalysis;
-    llm_analysis_model: string;
     story_id?: number | null;
 }
 
@@ -42,24 +40,29 @@ export async function insertArticle(articleData: ArticleData) {
         throw new Error("Title and content are required to insert an article.");
     }
 
-    // 1. Generate embedding
+    // 1. Analyse sentiment
+    const biasAnalysis = await analyseSentiment(title, full_text_content);
+
+    // 2. Generate embedding
     const embedding = await getEmbeddings(`${title}\n\n${full_text_content}`);
 
     let storyIdToAssign = articleData.story_id;
 
-    // 2. If no story_id is provided, create a new story
+    // 3. If no story_id is provided, create a new story
     if (!storyIdToAssign) {
         storyIdToAssign = await createStory(title);
     }
 
-    // 3. Prepare article record for insertion
+    // 4. Prepare article record for insertion
     const articleRecord = {
         ...articleData,
         embedding: embedding,
         story_id: storyIdToAssign,
+        bias_analysis: biasAnalysis,
+        llm_analysis_model: ANALYSIS_MODEL,
     };
 
-    // 4. Insert the article
+    // 5. Insert the article
     const { data: newArticle, error: insertError } = await supabase
         .from("articles")
         .insert(articleRecord)
@@ -81,7 +84,7 @@ You are an expert Malaysian media analyst. Your task is to analyze the provided 
      Your response MUST be a single, valid JSON object following this exact schema:
   
      {
-       "summary": "A brief, neutral, one-sentence summary of the article's main point.",
+       "summary": "A brief, neutral, one-sentence summary of the article's main point. It MUST be in English",
        "sentiment_overall": {
          "score": <float between -1.0 (very negative) and 1.0 (very positive)>,
          "label": "<'Positive' | 'Negative' | 'Neutral'>"

@@ -48,17 +48,6 @@ This incident is the latest in a series of fatal shootings, with similar cases o
             title: articleTitle,
             full_text_content: articleText,
             published_at: new Date(),
-            bias_analysis: { // Dummy analysis
-                summary: "summary",
-                sentiment_overall: { score: 0, label: "Neutral" },
-                sentiment_towards_government: { score: 0, explanation: "neutral" },
-                "sentiment_towards_Malay and Bumiputera": { score: 0, explanation: "neutral" },
-                sentiment_towards_Islam: { score: 0, explanation: "neutral" },
-                sentiment_towards_Multicultural: { score: 0, explanation: "neutral" },
-                sentiment_towards_Secular_learning: { score: 0, explanation: "neutral" },
-                topics_detected: ["test"],
-            },
-            llm_analysis_model: "test-model",
             story_id: existingStoryId,
         });
 

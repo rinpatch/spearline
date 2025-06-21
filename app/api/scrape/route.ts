@@ -4,9 +4,11 @@ import { Redis } from "@upstash/redis";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { createHash } from "crypto";
-import { NextResponse } from "next/server";
-import { supabase } from "@/lib/service/supabase-server";
+import { NextRequest, NextResponse } from "next/server";
 import { siteConfigs, SiteConfig } from "@/lib/meridianconfig";
+import { insertArticle } from "@/lib/model/article";
+import { getSourceByUrl } from "@/lib/model/source";
+import { verifyQstashSignature } from "@/lib/qstash";
 
 // --- Environment Variable Validation ---
 const redisUrl = process.env.KV_REST_API_URL;
@@ -46,7 +48,7 @@ const parseDate = (dateString: string | undefined): string => {
             return new Date().toISOString();
         }
         return date.toISOString();
-    } catch (error) {
+    } catch {
         return new Date().toISOString();
     }
 };
@@ -116,7 +118,7 @@ async function crawlForArticleLinks(
  * @param url - The URL of the article to process.
  * @param config - The configuration for the target site.
  */
-async function processArticle(url: string, config: SiteConfig): Promise<boolean> {
+async function processArticle(url: string, config: SiteConfig, sourceNumericId: number): Promise<boolean> {
   const urlHash = getUrlHash(url);
 
   const isMember = await redis.sismember(DEDUPLICATION_SET_KEY, urlHash);
@@ -144,32 +146,35 @@ async function processArticle(url: string, config: SiteConfig): Promise<boolean>
         contentElement.find(selector).remove();
       });
     }
-    let content = contentElement.text().trim().replace(/\s+/g, ' ');
+    const content = contentElement.text().trim().replace(/\s+/g, " ");
 
     // --- Date Parsing ---
-    const dateString = $('meta[property="article:published_time"]').attr('content') || $(config.extraction.dateSelector).attr('datetime') || $(config.extraction.dateSelector).text();
+    const dateString =
+      $('meta[property="article:published_time"]').attr("content") ||
+      $(config.extraction.dateSelector).attr("datetime") ||
+      $(config.extraction.dateSelector).text();
     const published_at = parseDate(dateString);
 
     // --- Validation ---
-    if (!title || title.length < 5 ||!content || content.length < 50) {
+    if (!title || title.length < 5 || !content || content.length < 50) {
       console.warn(`[${config.sourceName}] Insufficient content from: ${url}`);
       return false;
     }
 
     // --- Database Insertion ---
-    const { error: insertError } = await supabase.from("articles").insert({
-      source_id: 1,
+    await insertArticle({
+      source_id: sourceNumericId,
       url: url,
       url_hash: urlHash,
       title: title,
       full_text_content: content,
-      published_at: published_at,
+      published_at: new Date(published_at),
     });
 
-    if (insertError) throw insertError;
-
     await redis.sadd(DEDUPLICATION_SET_KEY, urlHash);
-    console.log(`[${config.sourceName}] Successfully processed and stored: ${title}`);
+    console.log(
+      `[${config.sourceName}] Successfully processed and stored: ${title}`
+    );
     return true;
 
   } catch (error: unknown) {
@@ -186,8 +191,15 @@ async function processArticle(url: string, config: SiteConfig): Promise<boolean>
 
 
 // --- API Route Handler ---
-export async function POST(req: Request) {
-  const { sourceId } = await req.json();
+export async function POST(req: NextRequest) {
+  const body = await req.text();
+
+  const verificationError = await verifyQstashSignature(req, body);
+  if (verificationError) {
+      return verificationError;
+  }
+
+  const { sourceId } = JSON.parse(body);
 
   if (!sourceId) {
     return NextResponse.json({ error: "Missing sourceId" }, { status: 400 });
@@ -197,6 +209,11 @@ export async function POST(req: Request) {
 
   if (!config) {
     return NextResponse.json({ error: `Configuration for sourceId '${sourceId}' not found.` }, { status: 404 });
+  }
+  
+  const source = await getSourceByUrl(config.baseUrl);
+  if (!source) {
+      return NextResponse.json({ error: `Source with base URL '${config.baseUrl}' not found in database.` }, { status: 404 });
   }
   
   // Guard against trying to run dynamic scrapes with this static-only implementation
@@ -220,7 +237,7 @@ export async function POST(req: Request) {
     let processedCount = 0;
 
     for (const url of Array.from(articleUrls)) {
-      if (await processArticle(url, config)) {
+      if (await processArticle(url, config, source.id)) {
         processedCount++;
       }
     }

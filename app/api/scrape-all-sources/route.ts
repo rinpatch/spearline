@@ -1,6 +1,7 @@
 import { Client } from "@upstash/qstash";
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase-server';
+import { verifyQstashSignature } from "@/lib/qstash";
 
 type Source = {
     id: number;
@@ -24,7 +25,12 @@ const qstashClient = new Client({ token: qstashToken });
  * scraping jobs for each one to a QStash queue. This decouples the master
  * trigger from the individual scraping tasks for resilience and scalability.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
+    const verificationError = await verifyQstashSignature(req, await req.text());
+    if (verificationError) {
+        return verificationError;
+    }
+
     try {
         console.log("Scrape-all-sources job started.");
 

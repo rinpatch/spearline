@@ -40,7 +40,7 @@ export const siteConfigs: SiteConfig[] = [
     sourceName: "Malay Mail",
     baseUrl: "https://www.malaymail.com",
     fetchStrategy: 'static',
-    discovery: { type: 'links', startUrls: ["https://www.malaymail.com/news/malaysia"], urlPattern: /\/(news|money|sports|showbiz)\/.+/ },
+    discovery: { type: 'links', startUrls: ["https://www.malaymail.com/"], urlPattern: /\/(news|money|sports|showbiz)\/.+/ },
     pagination: { type: 'next_button', selector: 'a.page-link[rel=next]' },
     extraction: {
       titleSelector: 'h1.article-title',
