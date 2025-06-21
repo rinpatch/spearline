@@ -82,7 +82,7 @@ const getArticleBias = (biasAnalysis?: BiasAnalysis) => {
     'Secular-Leaning': biasAnalysis.sentiment_towards_Secular_learning?.score || 0,
   };
   
-  // Find the sentiment with the highest absolute value
+  // Find the sentiment with the highest absolute value (matching story-level logic)
   let primaryBias: keyof typeof BIAS_CONFIG = 'Neutral';
   let maxScore = 0;
   let justification = 'Neutral analysis with no strong bias detected';
@@ -107,10 +107,10 @@ const getArticleBias = (biasAnalysis?: BiasAnalysis) => {
     }
   });
   
-  // If no strong bias detected (all scores close to 0), keep as Neutral
-  if (Math.abs(maxScore) < 0.3) {
+  // Only show as Neutral if ALL scores are exactly 0 (matching story-level logic)
+  if (maxScore === 0) {
     primaryBias = 'Neutral';
-    justification = 'Neutral analysis with no strong bias detected';
+    justification = 'No sentiment detected in analysis';
   }
   
   return { bias: primaryBias, justification };

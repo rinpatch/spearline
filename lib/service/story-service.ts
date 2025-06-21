@@ -206,9 +206,10 @@ export function processStoriesForFrontend(stories: Story[]): ProcessedStory[] {
         secular: sentimentAggregation.secular / validAnalysisCount
       };
 
-      // Get the top 2 sentiment categories (positive or negative)
+      // Get the top 2 sentiment categories (positive or negative) but only if above threshold
       const sortedSentiments = Object.entries(avgSentiments)
         .map(([key, value]) => ({ key, value: Math.abs(value) }))
+        .filter(({ value }) => value >= 0.3) // Add 0.3 threshold filter
         .sort((a, b) => b.value - a.value)
         .slice(0, 2);
 
