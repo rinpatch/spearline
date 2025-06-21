@@ -111,7 +111,7 @@ export default function SpearlineHomepage() {
     async function fetchStories() {
       try {
         setLoading(true)
-        const fetchedStories = await getProcessedStories(10)
+        const fetchedStories = await getProcessedStories(1000)
         setStories(fetchedStories)
       } catch (err) {
         console.error('Error fetching stories:', err)

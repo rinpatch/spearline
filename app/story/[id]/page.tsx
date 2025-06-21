@@ -72,48 +72,52 @@ const BIAS_CONFIG = {
 
 // Helper function to determine the primary bias from bias analysis
 const getArticleBias = (biasAnalysis?: BiasAnalysis) => {
-  if (!biasAnalysis) return { bias: 'Neutral', justification: 'No bias analysis available' };
+  if (!biasAnalysis) return [{ bias: 'Neutral', justification: 'No bias analysis available' }];
   
   const sentiments = {
-    'Pro-Government': biasAnalysis.sentiment_towards_government?.score || 0,
-    'Pro-Malay/Bumiputera': biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.score || 0,
-    'Pro-Islam': biasAnalysis.sentiment_towards_Islam?.score || 0,
-    'Multicultural': biasAnalysis.sentiment_towards_Multicultural?.score || 0,
-    'Secular-Leaning': biasAnalysis.sentiment_towards_Secular_learning?.score || 0,
+    'Pro-Government': {
+      score: biasAnalysis.sentiment_towards_government?.score || 0,
+      explanation: biasAnalysis.sentiment_towards_government?.explanation || 'Government sentiment detected'
+    },
+    'Pro-Malay/Bumiputera': {
+      score: biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.score || 0,
+      explanation: biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.explanation || 'Malay/Bumiputera sentiment detected'
+    },
+    'Pro-Islam': {
+      score: biasAnalysis.sentiment_towards_Islam?.score || 0,
+      explanation: biasAnalysis.sentiment_towards_Islam?.explanation || 'Islamic sentiment detected'
+    },
+    'Multicultural': {
+      score: biasAnalysis.sentiment_towards_Multicultural?.score || 0,
+      explanation: biasAnalysis.sentiment_towards_Multicultural?.explanation || 'Multicultural sentiment detected'
+    },
+    'Secular-Leaning': {
+      score: biasAnalysis.sentiment_towards_Secular_learning?.score || 0,
+      explanation: biasAnalysis.sentiment_towards_Secular_learning?.explanation || 'Secular sentiment detected'
+    },
   };
   
-  // Find the sentiment with the highest absolute value (matching story-level logic)
-  let primaryBias: keyof typeof BIAS_CONFIG = 'Neutral';
-  let maxScore = 0;
-  let justification = 'Neutral analysis with no strong bias detected';
+  // Get biases over threshold, sorted by absolute value (matching story-level logic)
+  const significantBiases = Object.entries(sentiments)
+    .map(([bias, data]) => ({ 
+      bias: bias as keyof typeof BIAS_CONFIG, 
+      score: Math.abs(data.score),
+      explanation: data.explanation 
+    }))
+    .filter(({ score }) => score >= 0.3) // Apply 0.3 threshold
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2); // Take top 2 like story-level logic
   
-  Object.entries(sentiments).forEach(([bias, score]) => {
-    if (Math.abs(score) > Math.abs(maxScore)) {
-      maxScore = score;
-      primaryBias = bias as keyof typeof BIAS_CONFIG;
-      
-      // Get the explanation from the bias analysis
-      if (bias === 'Pro-Government') {
-        justification = biasAnalysis.sentiment_towards_government?.explanation || 'Government sentiment detected';
-      } else if (bias === 'Pro-Malay/Bumiputera') {
-        justification = biasAnalysis["sentiment_towards_Malay and Bumiputera"]?.explanation || 'Malay/Bumiputera sentiment detected';
-      } else if (bias === 'Pro-Islam') {
-        justification = biasAnalysis.sentiment_towards_Islam?.explanation || 'Islamic sentiment detected';
-      } else if (bias === 'Multicultural') {
-        justification = biasAnalysis.sentiment_towards_Multicultural?.explanation || 'Multicultural sentiment detected';
-      } else if (bias === 'Secular-Leaning') {
-        justification = biasAnalysis.sentiment_towards_Secular_learning?.explanation || 'Secular sentiment detected';
-      }
-    }
-  });
-  
-  // Only show as Neutral if ALL scores are exactly 0 (matching story-level logic)
-  if (maxScore === 0) {
-    primaryBias = 'Neutral';
-    justification = 'No sentiment detected in analysis';
+  // If no significant biases, return neutral
+  if (significantBiases.length === 0) {
+    return [{ bias: 'Neutral', justification: 'No significant bias detected (all scores < 0.3)' }];
   }
   
-  return { bias: primaryBias, justification };
+  // Return array of significant biases with their explanations
+  return significantBiases.map(({ bias, explanation }) => ({
+    bias,
+    justification: explanation
+  }));
 };
 
 const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
@@ -179,8 +183,7 @@ const ArticlesList = ({
     <div className="space-y-3">
       <h4 className="text-sm font-medium text-gray-900">Individual Articles ({articles.length})</h4>
       {articles.map((article) => {
-        const { bias, justification } = getArticleBias(article.bias_analysis);
-        const biasConfig = BIAS_CONFIG[bias as keyof typeof BIAS_CONFIG] || BIAS_CONFIG['Neutral'];
+        const biases = getArticleBias(article.bias_analysis);
         
         return (
           <div key={article.id} className="border border-gray-200 rounded-lg p-3">
@@ -194,18 +197,25 @@ const ArticlesList = ({
                     {article.source.name}
                   </span>
                 </Link>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium cursor-help ${biasConfig.className}`}
-                    >
-                      {biasConfig.label}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="text-sm">{justification}</p>
-                  </TooltipContent>
-                </Tooltip>
+                <div className="flex items-center space-x-1">
+                  {biases.map(({ bias, justification }, index) => {
+                    const biasConfig = BIAS_CONFIG[bias as keyof typeof BIAS_CONFIG] || BIAS_CONFIG['Neutral'];
+                    return (
+                      <Tooltip key={index}>
+                        <TooltipTrigger asChild>
+                          <span
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium cursor-help ${biasConfig.className}`}
+                          >
+                            {biasConfig.label}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-sm">{justification}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
               </div>
               <span>{new Date(article.published_at).toLocaleDateString()}</span>
             </div>
