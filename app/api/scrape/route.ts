@@ -9,8 +9,8 @@ import { supabase } from "@/lib/service/supabase-server";
 import { siteConfigs, SiteConfig } from "@/lib/meridianconfig";
 
 // --- Environment Variable Validation ---
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const redisUrl = process.env.KV_REST_API_URL;
+const redisToken = process.env.KV_REST_API_TOKEN;
 if (!redisUrl ||!redisToken) {
   throw new Error("Missing Upstash Redis environment variables.");
 }
@@ -28,10 +28,10 @@ const getUrlHash = (url: string): string => {
   return createHash("sha256").update(url).digest("hex");
 };
 
-const normalizeUrl = (href: string, baseUrl: string): string | null => {
+const normalizeUrl = (pageUrl: string, currentUrl: string): string | null => {
   try {
-    return new URL(href, baseUrl).toString();
-  } catch (error) {
+    return new URL(pageUrl, currentUrl).toString();
+  } catch {
     return null;
   }
 };
@@ -68,8 +68,7 @@ async function crawlForArticleLinks(
   visitedPages: Set<string>,
   depth: number
 ): Promise<void> {
-  if (depth >= MAX_PAGINATION_DEPTH |
-| visitedPages.has(pageUrl)) {
+  if (depth >= MAX_PAGINATION_DEPTH || visitedPages.has(pageUrl)) {
     return;
   }
   visitedPages.add(pageUrl);
@@ -87,7 +86,7 @@ async function crawlForArticleLinks(
       const href = $(el).attr('href');
       if (!href) return;
 
-      const fullUrl = normalizeUrl(href, config.baseUrl);
+      const fullUrl = normalizeUrl(href, pageUrl);
       if (fullUrl && config.discovery.urlPattern.test(fullUrl)) {
         articleUrls.add(fullUrl);
       }
@@ -97,7 +96,7 @@ async function crawlForArticleLinks(
     if (config.pagination.type === 'next_button' && config.pagination.selector) {
       const nextPageLink = $(config.pagination.selector).first().attr('href');
       if (nextPageLink) {
-        const nextPageUrl = normalizeUrl(nextPageLink, config.baseUrl);
+        const nextPageUrl = normalizeUrl(nextPageLink, pageUrl);
         if (nextPageUrl) {
           await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS));
           await crawlForArticleLinks(config, nextPageUrl, articleUrls, visitedPages, depth + 1);
@@ -148,22 +147,18 @@ async function processArticle(url: string, config: SiteConfig): Promise<boolean>
     let content = contentElement.text().trim().replace(/\s+/g, ' ');
 
     // --- Date Parsing ---
-    const dateString = $('meta[property="article:published_time"]').attr('content') |
-| $(config.extraction.dateSelector).attr('datetime') |
-| $(config.extraction.dateSelector).text();
+    const dateString = $('meta[property="article:published_time"]').attr('content') || $(config.extraction.dateSelector).attr('datetime') || $(config.extraction.dateSelector).text();
     const published_at = parseDate(dateString);
 
     // --- Validation ---
-    if (!title |
-| title.length < 5 ||!content |
-| content.length < 50) {
+    if (!title || title.length < 5 ||!content || content.length < 50) {
       console.warn(`[${config.sourceName}] Insufficient content from: ${url}`);
       return false;
     }
 
     // --- Database Insertion ---
     const { error: insertError } = await supabase.from("articles").insert({
-      source_id: config.sourceId,
+      source_id: 1,
       url: url,
       url_hash: urlHash,
       title: title,

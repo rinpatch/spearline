@@ -6,6 +6,8 @@ type Source = {
     id: number;
     name: string;
     base_url: string;
+    title_selector: string;
+    content_selector: string;
 };
 
 // --- Configuration ---
@@ -29,7 +31,7 @@ export async function POST() {
         // 1. Fetch all news sources from the 'sources' table.
         const { data: sources, error } = await supabase
             .from('sources')
-            .select('id, name, base_url');
+            .select('id, name, base_url, title_selector, content_selector');
 
         if (error) {
             console.error('Supabase error fetching sources:', error);
