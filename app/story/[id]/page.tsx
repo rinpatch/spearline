@@ -1,64 +1,17 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { ArrowLeft, Calendar, ExternalLink, Share2 } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { getProcessedStoryById, DetailedStory } from "@/lib/service/story-service"
 
-// Update the mock article data to include the 6 specified sources
-const article = {
-  id: 1,
-  title: "Malaysia's Digital Economy Initiative Receives Mixed Reception",
-  image: "/placeholder.svg?height=400&width=800",
-  content: `
-    <p>The Malaysian government has announced a comprehensive RM50 billion digital transformation plan that aims to accelerate the country's transition into a digital economy powerhouse by 2030.</p>
-    
-    <p>Prime Minister Datuk Seri Anwar Ibrahim unveiled the initiative during a special parliamentary session, emphasizing that the plan will focus on artificial intelligence, blockchain technology, and digital infrastructure development across both public and private sectors.</p>
-    
-    <p>"This is not just about technology adoption," the Prime Minister stated. "This is about fundamentally reshaping how Malaysia operates in the digital age, ensuring we remain competitive on the global stage while creating opportunities for all Malaysians."</p>
-    
-    <p>The initiative includes several key components: a RM20 billion allocation for AI research and development centers, RM15 billion for blockchain infrastructure in government services, and RM15 billion for digital skills training programs targeting 2 million Malaysians over the next five years.</p>
-    
-    <p>However, the announcement has drawn mixed reactions from various quarters. Opposition leaders have questioned the timeline and feasibility of such an ambitious plan, while business groups have expressed cautious optimism about the potential economic benefits.</p>
-    
-    <p>Technology industry experts have praised the government's vision but emphasized the need for proper implementation frameworks and regulatory clarity to ensure the initiative's success.</p>
-  `,
-  summary:
-    "Government announces RM50 billion digital transformation plan focusing on AI and blockchain adoption across public sectors, drawing mixed reactions from opposition and business groups.",
-  biasBreakdown: {
-    "Pro-Government": 40,
-    "Secular-Leaning": 25,
-    Multicultural: 20,
-    "Pro-Malay/Bumiputera": 15,
-  },
-  sources: [
-    { name: "Malay Mail", bias: "Pro-Government", url: "https://malaymail.com/example-article", slug: "malay-mail" },
-    { name: "The Sun", bias: "Secular-Leaning", url: "https://thesundaily.my/example-article", slug: "the-sun" },
-    {
-      name: "Sin Chew Daily",
-      bias: "Multicultural",
-      url: "https://sinchew.com.my/example-article",
-      slug: "sin-chew-daily",
-    },
-    {
-      name: "Utusan Malaysia",
-      bias: "Pro-Malay/Bumiputera",
-      url: "https://utusan.com.my/example-article",
-      slug: "utusan-malaysia",
-    },
-  ],
-  date: "2024-01-15",
-  totalSources: 4,
-  coverage: 85,
-  confidence: 87,
-}
-
-// Replace the BiasBadges component with:
 const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
   <div className="flex flex-wrap gap-2">
     {Object.entries(breakdown)
-      .filter(([_, percentage]) => percentage > 0)
+      .filter(([, percentage]) => percentage > 0)
       .sort(([, a], [, b]) => b - a) // Sort by percentage descending
       .map(([bias, percentage]) => (
         <span
@@ -74,7 +27,9 @@ const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
                     ? "bg-green-50 text-green-700 border border-green-100"
                     : bias === "Secular-Leaning"
                       ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
-                      : "bg-orange-50 text-orange-700 border border-orange-100"
+                      : bias === "Multicultural"
+                        ? "bg-orange-50 text-orange-700 border border-orange-100"
+                        : "bg-gray-50 text-gray-700 border border-gray-100"
           }`}
         >
           {bias === "Pro-Government"
@@ -87,15 +42,26 @@ const BiasBadges = ({ breakdown }: { breakdown: Record<string, number> }) => (
                   ? "Islam"
                   : bias === "Secular-Leaning"
                     ? "Secular"
-                    : "Multi"}
+                    : bias === "Multicultural"
+                      ? "Multi"
+                      : "Neutral"}{" "}
           {percentage}%
         </span>
       ))}
   </div>
 )
 
-// Add the SourcesList component with clickable links
-const SourcesList = ({ sources, showUrls = false }: { sources: any[]; showUrls?: boolean }) => (
+const SourcesList = ({ 
+  sources, 
+  showUrls = false 
+}: { 
+  sources: Array<{
+    name: string;
+    bias: string;
+    slug: string;
+  }>; 
+  showUrls?: boolean 
+}) => (
   <div className="space-y-2">
     <h4 className="text-sm font-medium text-gray-900">Coverage Sources ({sources.length})</h4>
     <div className="grid grid-cols-1 gap-2">
@@ -119,7 +85,9 @@ const SourcesList = ({ sources, showUrls = false }: { sources: any[]; showUrls?:
                         ? "bg-green-50 text-green-700 border border-green-100"
                         : source.bias === "Secular-Leaning"
                           ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
-                          : "bg-orange-50 text-orange-700 border border-orange-100"
+                          : source.bias === "Multicultural"
+                            ? "bg-orange-50 text-orange-700 border border-orange-100"
+                            : "bg-gray-50 text-gray-700 border border-gray-100"
               }`}
             >
               {source.bias === "Pro-Government"
@@ -132,15 +100,15 @@ const SourcesList = ({ sources, showUrls = false }: { sources: any[]; showUrls?:
                       ? "Islam"
                       : source.bias === "Secular-Leaning"
                         ? "Secular"
-                        : "Multi"}
+                        : source.bias === "Multicultural"
+                          ? "Multi"
+                          : "Independent"}
             </span>
           </div>
           {showUrls && (
-            <Button variant="ghost" size="sm" asChild>
-              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-xs">
-                <ExternalLink className="h-3 w-3 mr-1" />
-                Read
-              </a>
+            <Button variant="ghost" size="sm">
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Read
             </Button>
           )}
         </div>
@@ -149,7 +117,139 @@ const SourcesList = ({ sources, showUrls = false }: { sources: any[]; showUrls?:
   </div>
 )
 
-export default function ArticlePage() {
+const ArticlesList = ({ 
+  articles 
+}: { 
+  articles: Array<{
+    id: number;
+    title: string;
+    published_at: string;
+    url?: string;
+    source: {
+      name: string;
+      bias: string;
+      slug: string;
+    };
+  }> 
+}) => (
+  <div className="space-y-3">
+    <h4 className="text-sm font-medium text-gray-900">Individual Articles ({articles.length})</h4>
+    {articles.map((article) => (
+      <div key={article.id} className="border border-gray-200 rounded-lg p-3">
+        <h5 className="font-medium text-gray-900 mb-2 text-sm leading-tight">
+          {article.title}
+        </h5>
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+          <div className="flex items-center space-x-2">
+            <Link href={`/source/${article.source.slug}`}>
+              <span className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer">
+                {article.source.name}
+              </span>
+            </Link>
+            <span
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                article.source.bias === "Pro-Government"
+                  ? "bg-red-50 text-red-700"
+                  : article.source.bias === "Pro-Opposition"
+                    ? "bg-blue-50 text-blue-700"
+                    : article.source.bias === "Pro-Malay/Bumiputera"
+                      ? "bg-amber-50 text-amber-700"
+                      : article.source.bias === "Pro-Islam"
+                        ? "bg-green-50 text-green-700"
+                        : article.source.bias === "Secular-Leaning"
+                          ? "bg-yellow-50 text-yellow-700"
+                          : article.source.bias === "Multicultural"
+                            ? "bg-orange-50 text-orange-700"
+                            : "bg-gray-50 text-gray-700"
+              }`}
+            >
+              {article.source.bias === "Pro-Government"
+                ? "Gov"
+                : article.source.bias === "Pro-Opposition"
+                  ? "Opp"
+                  : article.source.bias === "Pro-Malay/Bumiputera"
+                    ? "Malay"
+                    : article.source.bias === "Pro-Islam"
+                      ? "Islam"
+                      : article.source.bias === "Secular-Leaning"
+                        ? "Secular"
+                        : article.source.bias === "Multicultural"
+                          ? "Multi"
+                          : "Independent"}
+            </span>
+          </div>
+          <span>{new Date(article.published_at).toLocaleDateString()}</span>
+        </div>
+        {article.url && (
+          <Button variant="outline" size="sm" asChild className="text-xs">
+            <a href={article.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Read Original
+            </a>
+          </Button>
+        )}
+      </div>
+    ))}
+  </div>
+)
+
+export default function StoryPage({ params }: { params: { id: string } }) {
+  const [story, setStory] = useState<DetailedStory | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function fetchStory() {
+      try {
+        setLoading(true)
+        const storyId = parseInt(params.id)
+        if (isNaN(storyId)) {
+          setError('Invalid story ID')
+          return
+        }
+        
+        const fetchedStory = await getProcessedStoryById(storyId)
+        if (!fetchedStory) {
+          setError('Story not found')
+          return
+        }
+        
+        setStory(fetchedStory)
+      } catch (err) {
+        console.error('Error fetching story:', err)
+        setError('Failed to load story')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchStory()
+  }, [params.id])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading story...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !story) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error || 'Story not found'}</p>
+          <Link href="/">
+            <Button>Back to Home</Button>
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -174,35 +274,33 @@ export default function ArticlePage() {
         </div>
       </header>
 
-      {/* Article Content */}
+      {/* Story Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Article Header */}
+        {/* Story Header */}
         <div className="mb-8">
-          {/* Update the article header section to show total sources instead of single source */}
           <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
-            <span className="font-medium">{article.totalSources} sources</span>
+            <span className="font-medium">{story.totalSources} sources</span>
             <span>•</span>
             <div className="flex items-center space-x-1">
               <Calendar className="h-4 w-4" />
-              <span>{article.date}</span>
+              <span>{story.date}</span>
             </div>
             <span>•</span>
-            <span>{article.coverage}% coverage</span>
+            <span>{story.coverage}% coverage</span>
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-6">{article.title}</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-6">{story.title}</h1>
 
           {/* Featured Image */}
           <div className="mb-6">
             <img
-              src={article.image || "/placeholder.svg"}
-              alt={article.title}
+              src="/ringgit-banknotes.jpg"
+              alt={story.title}
               className="w-full h-64 md:h-96 object-cover rounded-lg shadow-sm"
             />
           </div>
 
           {/* Action Buttons */}
-          {/* Update the Action Buttons section to include sources list */}
           <div className="flex flex-col space-y-4 mb-8">
             <div className="flex items-center space-x-3">
               <Button variant="outline" size="sm">
@@ -217,7 +315,7 @@ export default function ArticlePage() {
 
             {/* Sources List */}
             <div className="bg-gray-50 rounded-lg p-4">
-              <SourcesList sources={article.sources} showUrls={true} />
+              <SourcesList sources={story.sources} showUrls={true} />
             </div>
           </div>
         </div>
@@ -226,7 +324,15 @@ export default function ArticlePage() {
           {/* Main Content */}
           <div className="lg:col-span-2">
             <div className="prose prose-lg max-w-none">
-              <div dangerouslySetInnerHTML={{ __html: article.content }} />
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Story Summary</h2>
+                <p className="text-gray-700 leading-relaxed">{story.summary}</p>
+              </div>
+              
+              {/* Individual Articles */}
+              <div className="mb-8">
+                <ArticlesList articles={story.articles} />
+              </div>
             </div>
           </div>
 
@@ -237,12 +343,12 @@ export default function ArticlePage() {
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center space-x-2 mb-4">
-                    <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">AI SUMMARY</div>
+                    <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">AI ANALYSIS</div>
                     <Badge variant="outline" className="text-xs">
-                      {article.confidence}% confidence
+                      {story.confidence}% confidence
                     </Badge>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">{article.summary}</p>
+                  <p className="text-gray-700 leading-relaxed">{story.summary}</p>
                 </CardContent>
               </Card>
 
@@ -255,9 +361,9 @@ export default function ArticlePage() {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <BiasBadges breakdown={article.biasBreakdown} />
+                    <BiasBadges breakdown={story.biasBreakdown} />
                     <div className="text-xs text-gray-500">
-                      <p>Analysis based on language patterns, source selection, and framing techniques.</p>
+                      <p>Analysis based on language patterns, source selection, and framing techniques across {story.articles.length} articles.</p>
                     </div>
                   </div>
                 </CardContent>
@@ -269,42 +375,35 @@ export default function ArticlePage() {
                   <div className="flex items-center space-x-2 mb-4">
                     <div className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">COVERAGE</div>
                   </div>
-                  {/* Update the Coverage Stats section */}
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">Total Sources</span>
-                      <span className="font-semibold">{article.totalSources}</span>
+                      <span className="font-semibold">{story.totalSources}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Articles</span>
+                      <span className="font-semibold">{story.articles.length}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">Coverage Score</span>
-                      <span className="font-semibold">{article.coverage}%</span>
+                      <span className="font-semibold">{story.coverage}%</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-gray-600">Perspectives</span>
-                      <span className="font-semibold">{Object.keys(article.biasBreakdown).length}</span>
+                      <span className="font-semibold">{Object.keys(story.biasBreakdown).length}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Related Articles */}
+              {/* Related Stories */}
               <Card>
                 <CardContent className="p-6">
                   <h3 className="font-semibold text-gray-900 mb-4">Related Stories</h3>
-                  {/* Update the Related Articles section to show multiple sources */}
                   <div className="space-y-3">
-                    <Link href="/article/2" className="block hover:bg-gray-50 p-2 rounded -m-2">
-                      <h4 className="text-sm font-medium text-gray-900 leading-tight mb-1">
-                        Opposition Questions Digital Economy Timeline
-                      </h4>
-                      <p className="text-xs text-gray-500">4 sources • 2024-01-16</p>
-                    </Link>
-                    <Link href="/article/3" className="block hover:bg-gray-50 p-2 rounded -m-2">
-                      <h4 className="text-sm font-medium text-gray-900 leading-tight mb-1">
-                        Tech Industry Welcomes Government Initiative
-                      </h4>
-                      <p className="text-xs text-gray-500">6 sources • 2024-01-16</p>
-                    </Link>
+                    <div className="text-sm text-gray-500">
+                      Related stories will be shown here based on topic similarity.
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -343,4 +442,4 @@ export default function ArticlePage() {
       </footer>
     </div>
   )
-}
+} 

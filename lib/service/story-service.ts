@@ -65,6 +65,21 @@ export interface ProcessedStory {
   coverage: number;
 }
 
+export interface DetailedStory extends ProcessedStory {
+  articles: Array<{
+    id: number;
+    title: string;
+    published_at: string;
+    url?: string;
+    source: {
+      name: string;
+      bias: string;
+      slug: string;
+    };
+  }>;
+  confidence: number;
+}
+
 /**
  * Fetches stories sorted by last article added, with their articles and sources
  */
@@ -99,6 +114,45 @@ export async function getStoriesWithArticles(limit: number = 10): Promise<Story[
   }
 
   return ((data || []) as unknown) as Story[];
+}
+
+/**
+ * Fetches a single story by ID with all its articles and sources
+ */
+export async function getStoryById(id: number): Promise<Story | null> {
+  const { data, error } = await supabase
+    .from("stories")
+    .select(`
+      id,
+      representative_title,
+      summary,
+      last_article_added_at,
+      created_at,
+      articles (
+        id,
+        title,
+        published_at,
+        url,
+        bias_analysis,
+        source:sources (
+          id,
+          name,
+          perceived_leaning
+        )
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null; // Story not found
+    }
+    console.error('Error fetching story:', error);
+    throw new Error(`Failed to fetch story: ${error.message}`);
+  }
+
+  return (data as unknown) as Story;
 }
 
 /**
@@ -210,9 +264,45 @@ export function processStoriesForFrontend(stories: Story[]): ProcessedStory[] {
 }
 
 /**
+ * Processes a single story for the detail page
+ */
+export function processStoryForDetail(story: Story): DetailedStory {
+  const processed = processStoriesForFrontend([story])[0];
+  const articles = story.articles || [];
+  
+  // Calculate confidence based on number of sources and articles
+  const confidence = Math.min(95, Math.max(60, 50 + (articles.length * 5) + (processed.totalSources * 3)));
+  
+  return {
+    ...processed,
+    articles: articles.map(article => ({
+      id: article.id,
+      title: article.title,
+      published_at: article.published_at,
+      url: (article as Article & { url?: string }).url, // Add URL if available
+      source: {
+        name: article.source.name,
+        bias: article.source.perceived_leaning || 'Independent',
+        slug: article.source.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+      }
+    })),
+    confidence
+  };
+}
+
+/**
  * Gets processed stories for the homepage
  */
 export async function getProcessedStories(limit: number = 10): Promise<ProcessedStory[]> {
   const stories = await getStoriesWithArticles(limit);
   return processStoriesForFrontend(stories);
+}
+
+/**
+ * Gets a single processed story for the detail page
+ */
+export async function getProcessedStoryById(id: number): Promise<DetailedStory | null> {
+  const story = await getStoryById(id);
+  if (!story) return null;
+  return processStoryForDetail(story);
 } 

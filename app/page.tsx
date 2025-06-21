@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Search } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
+
 import Link from "next/link"
 import { getProcessedStories, ProcessedStory } from "@/lib/service/story-service"
 
@@ -155,23 +155,7 @@ export default function SpearlineHomepage() {
   const topStories = stories.slice(1, 4)
   const remainingStories = stories.slice(4)
 
-  // Mock blindspot data - this would come from the backend later
-  const blindspotArticles = [
-    {
-      title: "Rural Internet Infrastructure Gaps",
-      missedBy: ["Pro-Government", "Pro-Malay/Bumiputera"],
-      coveredBy: ["Pro-Opposition", "Multicultural"],
-      impact: "High",
-      sources: 12,
-    },
-    {
-      title: "Youth Unemployment in Urban Areas",
-      missedBy: ["Pro-Islam", "Pro-Government"],
-      coveredBy: ["Secular-Leaning", "Pro-Opposition"],
-      impact: "Medium",
-      sources: 8,
-    },
-  ]
+
 
   return (
     <div className="min-h-screen bg-white">
@@ -205,7 +189,7 @@ export default function SpearlineHomepage() {
           <h2 className="text-lg font-bold text-gray-900 mb-4">Top News Stories</h2>
           <div className="space-y-3">
             {topStories.map((story) => (
-              <Link key={story.id} href={`/article/${story.id}`}>
+              <Link key={story.id} href={`/story/${story.id}`}>
                 <div className="border border-gray-200 rounded-lg p-3 bg-white hover:shadow-md transition-shadow">
                   <h3 className="text-sm font-semibold text-gray-900 leading-tight mb-2 hover:text-blue-600 cursor-pointer">
                     {story.title}
@@ -232,7 +216,7 @@ export default function SpearlineHomepage() {
               <h2 className="text-lg font-bold text-gray-900 mb-4">Top News Stories</h2>
               <div className="space-y-4">
                 {topStories.map((story) => (
-                  <Link key={story.id} href={`/article/${story.id}`}>
+                  <Link key={story.id} href={`/story/${story.id}`}>
                     <div className="border-b border-gray-200 pb-3 last:border-b-0 hover:bg-gray-50 p-2 rounded -m-2">
                       <h3 className="text-sm font-semibold text-gray-900 leading-tight mb-2 hover:text-blue-600 cursor-pointer">
                         {story.title}
@@ -257,7 +241,7 @@ export default function SpearlineHomepage() {
           <div className="lg:col-span-3 space-y-6">
             {/* Featured Story - More Compact */}
             {featuredStory && (
-              <Link href={`/article/${featuredStory.id}`}>
+              <Link href={`/story/${featuredStory.id}`}>
                 <Card className="overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer">
                   <div className="md:flex">
                     <div className="md:w-2/5">
@@ -309,7 +293,7 @@ export default function SpearlineHomepage() {
             {/* Story Grid - More Compact */}
             <div className="grid md:grid-cols-2 gap-4">
               {remainingStories.map((story) => (
-                <Link key={story.id} href={`/article/${story.id}`}>
+                <Link key={story.id} href={`/story/${story.id}`}>
                   <Card className="hover:shadow-md transition-shadow duration-200 cursor-pointer h-full">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
@@ -338,44 +322,6 @@ export default function SpearlineHomepage() {
                   </Card>
                 </Link>
               ))}
-            </div>
-
-            {/* Blindspot Section - Improved */}
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">BLINDSPOT</div>
-                <h2 className="text-lg font-bold text-gray-900">Coverage Gaps</h2>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                {blindspotArticles.map((item, index) => (
-                  <div key={index} className="bg-white rounded border border-red-200 p-3">
-                    <h3 className="font-semibold text-gray-900 mb-2 text-sm">{item.title}</h3>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-red-600 font-medium">Missing:</span>
-                        <span className="text-gray-700">{item.missedBy.join(", ")}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-green-600 font-medium">Covered:</span>
-                        <span className="text-gray-700">{item.coveredBy.join(", ")}</span>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            item.impact === "High"
-                              ? "border-red-500 text-red-700 bg-red-50"
-                              : "border-yellow-500 text-yellow-700 bg-yellow-50"
-                          }
-                        >
-                          {item.impact} Impact
-                        </Badge>
-                        <span className="text-gray-500">{item.sources} sources</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
         </div>
