@@ -3,9 +3,9 @@ import { NextApiRequest, NextApiResponse } from 'next'; // For Vercel
 import { supabase } from '../lib/supabase';
 
 type Source = {
-  id: number;
-  name: string;
-  base_url: string;
+    id: number;
+    name: string;
+    base_url: string;
 };
 
 // --- Configuration ---
