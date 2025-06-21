@@ -199,16 +199,16 @@ export async function POST(req: NextRequest) {
       return verificationError;
   }
 
-  const { sourceId } = JSON.parse(body);
+  const { baseUrl } = JSON.parse(body);
 
-  if (!sourceId) {
-    return NextResponse.json({ error: "Missing sourceId" }, { status: 400 });
+  if (!baseUrl) {
+    return NextResponse.json({ error: "Missing baseUrl" }, { status: 400 });
   }
 
-  const config = siteConfigs.find(c => c.sourceId === sourceId);
+  const config = siteConfigs.find(c => c.baseUrl === baseUrl);
 
   if (!config) {
-    return NextResponse.json({ error: `Configuration for sourceId '${sourceId}' not found.` }, { status: 404 });
+    return NextResponse.json({ error: `Configuration for baseUrl '${baseUrl}' not found.` }, { status: 404 });
   }
   
   const source = await getSourceByUrl(config.baseUrl);

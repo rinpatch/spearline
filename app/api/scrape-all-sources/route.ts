@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         const messages = sources.map((source: Source) => ({
             url: scrapeSiteApiUrl,
             body: {
-                sourceId: source.id,
+                baseUrl: source.base_url,
             },
         }));
 
