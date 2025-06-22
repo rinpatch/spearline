@@ -1,9 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 
 import Link from "next/link"
 import { getProcessedStories, ProcessedStory } from "@/lib/service/story-service"
@@ -102,7 +100,6 @@ const SourcesList = ({
 )
 
 export default function SpearlineHomepage() {
-  const [searchQuery, setSearchQuery] = useState("")
   const [stories, setStories] = useState<ProcessedStory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -277,18 +274,7 @@ export default function SpearlineHomepage() {
               </Link>
             )}
 
-            {/* Search Bar - More Compact */}
-            <div className="flex gap-3 items-center bg-gray-50 p-3 rounded-lg">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                <Input
-                  placeholder="Search Malaysian news..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-white border-gray-200"
-                />
-              </div>
-            </div>
+
 
             {/* Story Grid - More Compact */}
             <div className="grid md:grid-cols-2 gap-4">
