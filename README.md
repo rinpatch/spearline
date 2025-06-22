@@ -44,11 +44,15 @@ Spearline tackles this problem by using AI to detect and visualize ideological b
 
 **The goal**: Make media bias transparent, and empower Malaysians to think critically about what they read.
 
-## ✨ Features
+## Features
 - **AI-Powered Bias Detection**: Uses advanced LLM technology to classify ideological leanings
 - **Visual Bias Breakdown**: Clean percentage-based visualization of detected biases
 - **Side-by-Side Comparison**: Compare different perspectives on the same story
 - **Real-time Analysis**: Live processing of news articles as they're published
 
-## 🧪 Usage Instructions
+## Usage Instructions
 Visit: [https://spearline.vercel.app]
+
+## AI Usage
+
+In accordance with hackathon rules, we have utilized Cursor editor for help with most modules of this project.
